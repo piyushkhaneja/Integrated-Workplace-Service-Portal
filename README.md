@@ -130,8 +130,7 @@ Frontend	HTML, CSS, JS (served statically)
 Deployment Ready	.env configuration support
 Installation & Setup
 1. Clone the Repository
-git clone https://github.com/yourusername/jc-nexus-hub.git
-cd jc-nexus-hub
+
 
 2. Install Dependencies
 npm install
