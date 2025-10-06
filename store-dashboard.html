@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Store Dashboard - JC NEXUS HUB</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+
+    <style>
+        body { font-family: 'Poppins', sans-serif; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #a5b4fc; border-radius: 10px; }
+        .sidebar-collapsed .nav-text, .sidebar-collapsed .logo-text, .sidebar-collapsed .profile-text, .sidebar-collapsed .nav-divider { display: none; }
+        .sidebar-collapsed .nav-item { justify-content: center; }
+        .sidebar-collapsed .logo-container { justify-content: center; padding-left: 0; padding-right: 0;}
+        [x-cloak] { display: none !important; }
+        .loading-spinner { border-top-color: #4338ca; -webkit-animation: spin 1s linear infinite; animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .status-badge { padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.8rem; font-weight: 600; text-transform: capitalize; }
+        .status-pending { background-color: #fef9c3; color: #ca8a04; }
+        .status-approved { background-color: #cffafe; color: #0891b2; }
+        .status-delivered { background-color: #dcfce7; color: #16a34a; }
+        .status-cancelled { background-color: #fee2e2; color: #dc2626; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 antialiased">
+
+    <div x-data="storeDashboardApp()" x-init="initApp()" class="flex h-screen bg-slate-100">
+        
+        <aside 
+            :class="sidebarOpen ? 'w-72' : 'w-24 sidebar-collapsed'"
+            class="bg-white text-slate-700 flex flex-col transition-all duration-300 ease-in-out shadow-lg print:hidden">
+            
+            <div class="flex items-center h-20 px-6 border-b border-slate-200 logo-container transition-all duration-300">
+                <img src="/logo.png" alt="JC NEXUS Hub Logo" class="h-10 w-auto flex-shrink-0 rounded-full">
+                <span class="ml-4 text-xl font-bold logo-text whitespace-nowrap">JC NEXUS HUB</span>
+            </div>
+
+            <nav class="flex-1 px-5 py-8 space-y-3 overflow-y-auto">
+                <a href="#" @click.prevent="currentPage = 'dashboard'" :class="isActive('dashboard')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                    <i class="fa-solid fa-chart-pie h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                    <span class="ml-4 text-base font-medium nav-text">Dashboard</span>
+                </a>
+                <a href="#" @click.prevent="currentPage = 'pendingRequests'" :class="isActive('pendingRequests')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                    <i class="fa-solid fa-clipboard-list h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                    <span class="ml-4 text-base font-medium nav-text">Pending Requests</span>
+                </a>
+                <a href="#" @click.prevent="currentPage = 'fulfilledLog'" :class="isActive('fulfilledLog')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                    <i class="fa-solid fa-box-archive h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                    <span class="ml-4 text-base font-medium nav-text">Fulfilled Log</span>
+                </a>
+                <div class="pt-4 nav-divider"><hr class="border-t border-slate-200"></div>
+                <a href="#" @click.prevent="currentPage = 'broadcasts'" :class="isActive('broadcasts')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                    <i class="fa-solid fa-bullhorn h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                    <span class="ml-4 text-base font-medium nav-text">Broadcasts</span>
+                </a>
+                <div class="pt-4 nav-divider"><hr class="border-t border-slate-200"></div>
+                <a href="#" @click.prevent="currentPage = 'help'" :class="isActive('help')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                     <i class="fa-solid fa-circle-question h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                    <span class="ml-4 text-base font-medium nav-text">Help</span>
+                </a>
+            </nav>
+
+            <div @click="openProfileModal()" class="p-4 border-t border-slate-200 mt-auto cursor-pointer hover:bg-slate-50 transition-colors">
+                <div class="flex items-center" :class="!sidebarOpen && 'justify-center'">
+                    <div class="flex-shrink-0">
+                        <template x-if="currentUser && currentUser.pic"><img :src="currentUser.pic" alt="Profile" class="h-12 w-12 rounded-full object-cover"></template>
+                        <template x-if="!currentUser || !currentUser.pic"><div class="h-12 w-12 rounded-full bg-indigo-500 text-white flex items-center justify-center text-xl font-semibold"><span x-text="currentUser ? currentUser.fullName.charAt(0) : '?'"></span></div></template>
+                    </div>
+                    <div class="ml-4 profile-text">
+                        <p class="text-base font-semibold" x-text="currentUser ? currentUser.fullName : 'Loading...'"></p>
+                        <p class="text-sm text-slate-500" x-text="currentUser ? currentUser.role : '...'"></p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <header class="flex items-center justify-between h-20 px-8 bg-white border-b border-slate-200 print:hidden">
+                 <button @click="sidebarOpen = !sidebarOpen" class="text-slate-500 hover:text-indigo-600 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"><svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg></button>
+                <div class="flex items-center space-x-4">
+                    <div x-data="liveClock()" x-init="start()" class="text-base text-slate-600 hidden md:block">
+                        <span x-text="date"></span>, <span x-text="time" class="font-medium text-slate-800"></span>
+                    </div>
+                    
+                    <div x-data="{ open: false }" class="relative">
+                        <button @click="open = !open; markNotificationsAsRead()" class="relative p-3 text-slate-500 bg-slate-100 rounded-full hover:bg-slate-200 focus:outline-none" title="Notifications">
+                            <span class="sr-only">View notifications</span>
+                            <i class="fa-solid fa-bell text-xl"></i>
+                            <span x-show="unreadNotificationsCount > 0" class="absolute top-1 right-1 h-3 w-3 bg-red-500 rounded-full border-2 border-white"></span>
+                        </button>
+                        <div x-show="open" @click.away="open = false" x-transition class="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border z-50" x-cloak>
+                            <div class="p-4 font-semibold border-b">Notifications</div>
+                            <div class="p-2 max-h-96 overflow-y-auto">
+                                <template x-for="notification in notifications" :key="notification.id">
+                                    <div class="p-3 rounded-lg hover:bg-slate-50 cursor-pointer" @click="currentPage = 'pendingRequests'; open = false;">
+                                        <p class="text-sm" x-html="notification.text"></p>
+                                        <p class="text-xs text-slate-500 mt-1" x-text="notification.time"></p>
+                                    </div>
+                                </template>
+                                <div x-show="notifications.length === 0" class="text-center p-8 text-slate-500 text-sm">
+                                    <i class="fa-regular fa-circle-check text-5xl text-slate-400"></i>
+                                    <p class="mt-2 font-semibold">You're all caught up!</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button @click="openHelpModal()" class="p-3 text-slate-500 bg-slate-100 rounded-full hover:bg-slate-200 focus:outline-none" title="Help & Support">
+                        <span class="sr-only">Help & Support</span>
+                        <i class="fa-solid fa-question-circle text-xl"></i>
+                    </button>
+                    
+                    <a href="/logout" class="p-3 text-slate-500 bg-slate-100 rounded-full hover:bg-slate-200 hover:text-red-600 focus:outline-none" title="Logout">
+                        <span class="sr-only">Logout</span>
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                    </a>
+                </div>
+            </header>
+            
+            <main class="flex-1 overflow-x-hidden overflow-y-auto bg-slate-100">
+                <div x-show="isLoading" class="flex items-center justify-center h-full"><div class="flex items-center space-x-3"><div class="w-10 h-10 border-4 border-indigo-200 rounded-full loading-spinner"></div><p class="text-lg font-medium">Loading Store Dashboard...</p></div></div>
+
+                <div x-show="!isLoading && currentPage === 'dashboard'" x-cloak x-transition.opacity.duration.300ms class="p-8 space-y-8">
+                    <div><h1 class="text-4xl font-bold">Store Dashboard</h1><p class="text-lg text-slate-600 mt-1" x-show="currentUser">Welcome, <span x-text="currentUser.fullName ? currentUser.fullName.split(' ')[0] : 'Admin'"></span>. Here's a live overview of store requests.</p></div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between"><div><p class="text-base font-medium text-slate-500">Pending Requests</p><p class="text-4xl font-bold" x-text="stats.pending || 0"></p></div><div class="p-4 rounded-full bg-amber-100 text-amber-600"><i class="fa-solid fa-inbox text-3xl"></i></div></div>
+                        <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between"><div><p class="text-base font-medium text-slate-500">Approved for Dispatch</p><p class="text-4xl font-bold" x-text="stats.approved || 0"></p></div><div class="p-4 rounded-full bg-sky-100 text-sky-600"><i class="fa-solid fa-dolly text-3xl"></i></div></div>
+                        <div class="bg-white p-6 rounded-lg shadow-md flex items-center justify-between"><div><p class="text-base font-medium text-slate-500">Delivered Today</p><p class="text-4xl font-bold" x-text="stats.deliveredToday || 0"></p></div><div class="p-4 rounded-full bg-green-100 text-green-600"><i class="fa-solid fa-circle-check text-3xl"></i></div></div>
+                    </div>
+                     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div class="lg:col-span-2 bg-white p-8 rounded-lg shadow-md">
+                            <h3 class="text-2xl font-bold text-slate-900">Inventory Command Center</h3>
+                            <p class="mt-2 text-slate-600">This dashboard is your hub for managing all store and stationery requests. Track new orders, manage dispatch, and review fulfilled requests to maintain optimal stock levels and ensure timely delivery to employees.</p>
+                            <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div class="flex items-start gap-4">
+                                    <div class="flex-shrink-0 p-3 bg-indigo-100 rounded-lg text-indigo-600"><i class="fa-solid fa-clipboard-list h-6 w-6"></i></div>
+                                    <div>
+                                        <h4 class="font-semibold">Live Request Queue</h4>
+                                        <p class="text-sm text-slate-500">View and manage all incoming item requests from the 'Pending Requests' page in real-time.</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-start gap-4">
+                                    <div class="flex-shrink-0 p-3 bg-indigo-100 rounded-lg text-indigo-600"><i class="fa-solid fa-box-archive h-6 w-6"></i></div>
+                                    <div>
+                                        <h4 class="font-semibold">Fulfilled Order Log</h4>
+                                        <p class="text-sm text-slate-500">The 'Fulfilled Log' provides a complete history of dispatched items for inventory analysis and record-keeping.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-white p-6 rounded-lg shadow-md">
+                            <h3 class="text-lg font-semibold mb-4">Recent Live Requests</h3>
+                             <div class="space-y-4">
+                                <template x-for="request in recentRequests" :key="request._id">
+                                    <div class="flex items-start gap-3">
+                                        <div class="flex-shrink-0 pt-1">
+                                            <span class="h-6 w-6 rounded-full flex items-center justify-center text-xs" :class="{
+                                                'bg-amber-100 text-amber-700': request.status === 'Pending',
+                                                'bg-sky-100 text-sky-700': request.status === 'Approved'
+                                            }">
+                                                <i class="fas fa-box"></i>
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-medium leading-tight" x-text="request.requesterName"></p>
+                                            <p class="text-sm text-slate-500" x-text="`${request.itemName} (Qty: ${request.quantity})`"></p>
+                                        </div>
+                                    </div>
+                                </template>
+                                <div x-show="recentRequests.length === 0" class="text-center py-4 text-sm text-slate-500">No active requests.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div x-show="!isLoading && currentPage === 'pendingRequests'" x-cloak x-transition.opacity.duration.300ms class="p-8 space-y-6">
+                    <div><h1 class="text-4xl font-bold">Pending Store Requests</h1><p class="text-lg text-slate-600 mt-1">Manage and update all active item requests.</p></div>
+                    <div class="bg-white p-4 rounded-lg shadow-md flex flex-wrap items-center gap-4">
+                        <div class="flex flex-wrap items-center gap-2"><span class="text-base font-semibold mr-2">Filter by status:</span>
+                            <button @click="pendingRequestFilter = 'all'" :class="pendingRequestFilter === 'all' ? 'bg-indigo-600 text-white' : 'bg-slate-100 hover:bg-slate-200'" class="px-4 py-2 text-base font-medium rounded-md transition-colors">All</button>
+                            <button @click="pendingRequestFilter = 'Pending'" :class="pendingRequestFilter === 'Pending' ? 'bg-indigo-600 text-white' : 'bg-slate-100 hover:bg-slate-200'" class="px-4 py-2 text-base font-medium rounded-md transition-colors">Pending</button>
+                            <button @click="pendingRequestFilter = 'Approved'" :class="pendingRequestFilter === 'Approved' ? 'bg-indigo-600 text-white' : 'bg-slate-100 hover:bg-slate-200'" class="px-4 py-2 text-base font-medium rounded-md transition-colors">Approved</button>
+                        </div>
+                        <div class="flex-grow"><input type="search" x-model.debounce.300ms="pendingSearchQuery" placeholder="Search by name, ID, location, or item..." class="w-full text-base px-4 py-2 rounded-md bg-slate-100 border-transparent focus:ring-2 focus:ring-indigo-500 focus:border-transparent"></div>
+                    </div>
+                    <div class="bg-white rounded-lg shadow-md">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-base text-left">
+                                <thead class="text-sm text-slate-700 uppercase bg-slate-50">
+                                    <tr>
+                                        <th scope="col" class="px-6 py-4">Date</th>
+                                        <th scope="col" class="px-6 py-4">Employee</th>
+                                        <th scope="col" class="px-6 py-4">Location</th>
+                                        <th scope="col" class="px-6 py-4">Item Name</th>
+                                        <th scope="col" class="px-6 py-4">Description</th>
+                                        <th scope="col" class="px-6 py-4">Qty</th>
+                                        <th scope="col" class="px-6 py-4">Status</th>
+                                        <th scope="col" class="px-6 py-4">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-200">
+                                    <template x-for="request in filteredPendingRequests" :key="request._id">
+                                        <tr class="hover:bg-slate-50">
+                                            <td class="px-6 py-5 whitespace-nowrap" x-text="formatDate(request.createdAt, true)"></td>
+                                            <td class="px-6 py-5"><div class="font-medium" x-text="request.requesterName"></div><div class="text-sm text-slate-500" x-text="request.employeeId"></div></td>
+                                            <td class="px-6 py-5 text-sm"><div class="font-medium" x-text="request.floorNumber"></div><div class="text-slate-500" x-text="request.tableNumber"></div></td>
+                                            <td class="px-6 py-5 font-medium" x-text="request.itemName"></td>
+                                            <td class="px-6 py-5 text-sm text-slate-600 max-w-xs truncate" x-text="request.comments || '-'"></td>
+                                            <td class="px-6 py-5 font-bold" x-text="request.quantity"></td>
+                                            <td class="px-6 py-5"><span class="status-badge" :class="'status-' + request.status.toLowerCase().replace(/ /g, '-')" x-text="request.status"></span></td>
+                                            <td class="px-6 py-5 whitespace-nowrap">
+                                                <button @click="openUpdateStatusModal(request)" class="px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700">Update</button>
+                                                <button @click="openChatModal(request)" class="ml-2 px-3 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700">Chat</button>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                    <tr x-show="filteredPendingRequests.length === 0"><td colspan="8" class="text-center py-12 text-slate-500"><div class="flex flex-col items-center"><svg class="h-16 w-16 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg><p class="mt-4 font-semibold text-lg">No active requests found</p><p class="text-base">Try adjusting your filters or search query.</p></div></td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div x-show="!isLoading && currentPage === 'fulfilledLog'" x-cloak x-transition.opacity.duration.300ms class="p-8 space-y-6">
+                    <div class="flex flex-wrap justify-between items-center gap-4">
+                        <div><h1 class="text-4xl font-bold">Fulfilled Request Log</h1><p class="text-lg text-slate-600 mt-1">A complete record of all delivered or cancelled item requests.</p></div>
+                        <button @click="downloadCSV()" class="px-4 py-2 text-sm font-semibold text-white bg-green-600 rounded-lg shadow-sm hover:bg-green-700"><i class="fa-solid fa-download mr-2"></i>Download CSV</button>
+                    </div>
+                     <div class="bg-white p-4 rounded-lg shadow-md flex items-center">
+                        <div class="flex-grow"><input type="search" x-model.debounce.300ms="fulfilledSearchQuery" placeholder="Search log by name, ID, item, or dispatcher..." class="w-full text-base px-4 py-2 rounded-md bg-slate-100 border-transparent focus:ring-2 focus:ring-indigo-500 focus:border-transparent"></div>
+                    </div>
+                    <div class="bg-white rounded-lg shadow-md">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-base text-left">
+                                <thead class="text-sm text-slate-700 uppercase bg-slate-50">
+                                    <tr>
+                                        <th scope="col" class="px-6 py-4">Fulfilled At</th>
+                                        <th scope="col" class="px-6 py-4">Employee</th>
+                                        <th scope="col" class="px-6 py-4">Item Name</th>
+                                        <th scope="col" class="px-6 py-4">Fulfilled By</th>
+                                        <th scope="col" class="px-6 py-4">Fulfillment Note</th>
+                                        <th scope="col" class="px-6 py-4">Status</th>
+                                        <th scope="col" class="px-6 py-4">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-200">
+                                    <template x-for="request in filteredFulfilledRequests" :key="request._id">
+                                        <tr class="hover:bg-slate-50">
+                                            <td class="px-6 py-5" x-text="formatDate(request.completedAt, true)"></td>
+                                            <td class="px-6 py-5"><div class="font-medium" x-text="request.requesterName"></div><div class="text-sm text-slate-500" x-text="request.employeeId"></div></td>
+                                            <td class="px-6 py-5 font-medium" x-text="request.itemName"></td>
+                                            <td class="px-6 py-5" x-text="request.fulfilledBy || 'N/A'"></td>
+                                            <td class="px-6 py-5 text-sm text-slate-600 max-w-xs truncate" x-text="request.fulfillmentNote || '-'"></td>
+                                            <td class="px-6 py-5"><span class="status-badge" :class="'status-' + request.status.toLowerCase().replace(/ /g, '-')" x-text="request.status"></span></td>
+                                            <td class="px-6 py-5 whitespace-nowrap">
+                                                <button @click="openRequestDetailsModal(request)" class="px-3 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700">Details</button>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                            <div x-show="filteredFulfilledRequests.length === 0" class="text-center py-12 text-slate-500"><div class="flex flex-col items-center"><svg class="h-16 w-16 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" /></svg><p class="mt-4 font-semibold text-lg">No fulfilled requests found</p><p class="text-base">The log is empty or your search returned no results.</p></div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div x-show="!isLoading && currentPage === 'broadcasts'" x-cloak x-transition.opacity.duration.300ms class="p-8 space-y-8">
+                    <div><h1 class="text-4xl font-bold">Manage Broadcasts</h1><p class="text-lg text-slate-600 mt-1">Create and view team-wide announcements.</p></div>
+                    <div class="max-w-4xl mx-auto space-y-8">
+                        <div class="bg-white p-6 rounded-lg shadow-md"><h3 class="text-xl font-bold mb-4">Create New Broadcast</h3><form @submit.prevent="sendBroadcast"><textarea x-model="newBroadcastMessage" rows="4" placeholder="Type your announcement here..." class="w-full text-base p-3 rounded-md border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent" required></textarea><div class="flex justify-end mt-4"><button type="submit" class="px-6 py-3 text-base font-semibold text-white bg-indigo-600 rounded-md hover:bg-indigo-700">Post Announcement</button></div></form></div>
+                        <h3 class="text-2xl font-bold pt-4 border-t">Recent Broadcasts</h3>
+                        <template x-for="post in broadcasts" :key="post._id">
+                            <div class="bg-white p-6 rounded-lg shadow-md flex items-start gap-5">
+                                <div class="flex-shrink-0"><div class="h-12 w-12 rounded-full bg-indigo-500 text-white flex items-center justify-center text-xl font-semibold"><span x-text="post.senderName.charAt(0)"></span></div></div>
+                                <div class="flex-grow">
+                                    <div class="flex items-baseline justify-between"><div><p class="font-bold text-lg" x-text="post.senderName"></p><p class="text-sm text-slate-500" x-text="post.senderRole"></p></div><p class="text-sm text-slate-400" x-text="formatDate(post.createdAt)"></p></div>
+                                    <p class="mt-3 text-base text-slate-700" x-text="post.message"></p>
+                                </div>
+                            </div>
+                        </template>
+                        <div x-show="broadcasts.length === 0" class="text-center py-12 text-slate-500"><p class="font-semibold text-lg">No Broadcasts Yet</p></div>
+                    </div>
+                </div>
+                
+                <div x-show="!isLoading && currentPage === 'help'" x-cloak x-transition.opacity.duration.300ms class="p-8 space-y-8">
+                    <div><h1 class="text-4xl font-bold">Help Center</h1><p class="text-lg text-slate-600 mt-1">Frequently Asked Questions for the Store Dashboard.</p></div>
+                    <div class="pt-8">
+                        <h2 class="text-3xl font-bold mb-6">FAQs</h2>
+                        <div x-data="{ open: null }" class="space-y-4 max-w-4xl mx-auto">
+                           <div class="bg-white rounded-lg shadow-sm">
+                                <button @click="open = open === 1 ? null : 1" class="w-full text-left p-6 flex justify-between items-center"><span class="text-lg font-semibold">How do I update a request's status?</span><svg :class="{'rotate-180': open === 1}" class="h-6 w-6 transform transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg></button>
+                                <div x-show="open === 1" x-transition class="p-6 pt-0 text-slate-600"><p>On the 'Pending Requests' page, click the 'Update' button. You can change the status to 'Approved' or 'Delivered'. Marking a request as 'Delivered' requires a fulfillment note for record-keeping.</p></div>
+                            </div>
+                            <div class="bg-white rounded-lg shadow-sm">
+                                <button @click="open = open === 2 ? null : 2" class="w-full text-left p-6 flex justify-between items-center"><span class="text-lg font-semibold">What is a Fulfillment Note?</span><svg :class="{'rotate-180': open === 2}" class="h-6 w-6 transform transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg></button>
+                                <div x-show="open === 2" x-transition class="p-6 pt-0 text-slate-600"><p>A fulfillment note is a mandatory comment you must add when marking a request as 'Delivered' or 'Cancelled'. This is for record-keeping, e.g., "Item delivered to desk" or "Item out of stock, request cancelled".</p></div>
+                            </div>
+                            <div class="bg-white rounded-lg shadow-sm">
+                                <button @click="open = open === 3 ? null : 3" class="w-full text-left p-6 flex justify-between items-center"><span class="text-lg font-semibold">How do I view the details of a delivered request?</span><svg :class="{'rotate-180': open === 3}" class="h-6 w-6 transform transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg></button>
+                                <div x-show="open === 3" x-transition class="p-6 pt-0 text-slate-600"><p>Go to the 'Fulfilled Log' page and click the 'Details' button on any entry. This will open a modal showing all information for that request, including the original comments and your fulfillment notes.</p></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <div x-show="isUpdateStatusModalOpen" @keydown.escape.window="closeUpdateStatusModal()" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" x-cloak><div @click.away="closeUpdateStatusModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4" x-show="isUpdateStatusModalOpen" x-transition.scale><form @submit.prevent="submitStatusUpdate()"><div class="p-8"><h2 class="text-xl font-bold mb-2">Update Request Status</h2><p class="text-base text-slate-600 mb-4">Item: <strong x-text="requestToUpdate.itemName"></strong> (Qty: <strong x-text="requestToUpdate.quantity"></strong>)</p><label for="statusSelect" class="block text-sm font-medium">New Status</label><select id="statusSelect" x-model="newStatus" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm"><option>Pending</option><option>Approved</option><option>Delivered</option><option>Cancelled</option></select><div x-show="newStatus === 'Delivered' || newStatus === 'Cancelled'" class="mt-4"><label for="fulfillmentNote" class="block text-sm font-medium">Fulfillment Note (Required)</label><textarea id="fulfillmentNote" x-model="fulfillmentNoteInput" rows="3" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm" placeholder="e.g., Item delivered to user's desk."></textarea></div></div><div class="px-6 py-4 bg-slate-50 rounded-b-2xl flex justify-end gap-3"><button @click="closeUpdateStatusModal()" type="button" class="px-5 py-2.5 text-base font-medium rounded-md shadow-sm">Cancel</button><button type="submit" class="px-5 py-2.5 text-base font-medium text-white bg-indigo-600 rounded-md">Update Status</button></div></form></div></div>
+        <div x-show="isChatModalOpen" @keydown.escape.window="closeChatModal()" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" x-cloak><div @click.away="closeChatModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4" x-show="isChatModalOpen" x-transition.scale><div class="p-6"><div class="flex justify-between items-center pb-3 border-b"><h2 class="text-xl font-bold">Chat History</h2><button @click="closeChatModal()" class="text-slate-400 hover:text-slate-600 text-2xl">&times;</button></div><div class="mt-4 mb-4 h-64 overflow-y-auto p-3 bg-slate-50 rounded-md space-y-4" x-ref="chatHistory"><template x-for="msg in chatHistory"><div class="flex" :class="msg.senderRole === currentUser.role ? 'justify-end' : 'justify-start'"><div class="max-w-xs px-4 py-2 rounded-lg" :class="msg.senderRole === currentUser.role ? 'bg-indigo-500 text-white' : 'bg-slate-200 text-slate-800'"><p class="text-sm font-bold" x-text="msg.senderName"></p><p class="text-sm" x-text="msg.message"></p></div></div></template></div><form @submit.prevent="sendChatMessage()"><div class="flex gap-2"><input type="text" x-model="chatMessageInput" placeholder="Type your message..." class="flex-grow w-full rounded-md bg-transparent border-slate-300 shadow-sm" autocomplete="off" required><button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md">Send</button></div></form></div></div></div>
+        <div x-show="isProfileModalOpen" @keydown.escape.window="closeProfileModal()" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" x-cloak><div @click.away="closeProfileModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-2xl mx-4" x-show="isProfileModalOpen" x-transition.scale><div class="p-8" x-show="editableUser"><h2 class="text-2xl font-bold mb-6">My Profile</h2><div class="flex flex-col md:flex-row gap-8"><div class="flex-shrink-0 text-center"><img class="h-32 w-32 rounded-full object-cover mx-auto ring-4 ring-indigo-200" :src="profilePicPreviewUrl || (editableUser.pic) || 'https://placehold.co/128x128/c4b5fd/4338ca?text=' + editableUser.fullName.charAt(0)" alt="Profile Picture"><input type="file" @change="handleProfilePicChange" x-ref="profilePicInput" class="hidden" accept="image/*"><button @click="$refs.profilePicInput.click()" class="mt-4 text-base font-semibold text-indigo-600 hover:text-indigo-800">Change Picture</button></div><div class="flex-grow grid grid-cols-1 md:grid-cols-2 gap-4"><div><label class="block text-sm font-medium text-slate-500">Full Name</label><input type="text" :value="editableUser.fullName" disabled class="mt-1 w-full bg-slate-100 rounded-md border-slate-300 cursor-not-allowed"></div><div><label class="block text-sm font-medium text-slate-500">Employee ID</label><input type="text" :value="editableUser.employeeId" disabled class="mt-1 w-full bg-slate-100 rounded-md border-slate-300 cursor-not-allowed"></div><div><label class="block text-sm font-medium text-slate-500">Department</label><input type="text" :value="editableUser.department" disabled class="mt-1 w-full bg-slate-100 rounded-md border-slate-300 cursor-not-allowed"></div><div><label class="block text-sm font-medium text-slate-500">Joining Date</label><input type="text" :value="formatDate(editableUser.joiningDate, false)" disabled class="mt-1 w-full bg-slate-100 rounded-md border-slate-300 cursor-not-allowed"></div><div><label for="phone" class="block text-sm font-medium">Phone Number</label><input id="phone" type="tel" x-model="editableUser.phone" class="mt-1 w-full rounded-md border-slate-300 shadow-sm"></div><div><label class="block text-sm font-medium text-slate-500">Account Status</label><input type="text" :value="editableUser.status" disabled class="mt-1 w-full bg-slate-100 rounded-md border-slate-300 cursor-not-allowed"></div><div class="md:col-span-2"><label for="address" class="block text-sm font-medium">Address</label><textarea id="address" rows="2" x-model="editableUser.address" class="mt-1 w-full rounded-md border-slate-300 shadow-sm"></textarea></div></div></div><div class="mt-8 pt-5 border-t flex justify-end gap-3"><button @click="closeProfileModal()" type="button" class="px-5 py-2.5 text-base font-medium bg-white border border-slate-300 rounded-md hover:bg-slate-50">Cancel</button><button @click="saveProfileChanges()" type="button" class="px-5 py-2.5 text-base font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700">Save Changes</button></div></div></div></div>
+        <div x-show="isHelpModalOpen" @keydown.escape.window="closeHelpModal()" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" x-cloak><div @click.away="closeHelpModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4" x-show="isHelpModalOpen" x-transition.scale><div class="p-8"><h2 class="text-2xl font-bold mb-6">Help & Support</h2><div class="space-y-6"><div class="bg-slate-50 p-4 rounded-lg flex items-start gap-4"><i class="fa-solid fa-book-open-reader h-8 w-8 text-indigo-600 flex-shrink-0 mt-1 text-2xl"></i><div><h3 class="font-semibold text-lg">Visit our Help Center</h3><p class="text-slate-600 text-sm">Find answers to frequently asked questions about using the store dashboard.</p><button @click="currentPage='help'; closeHelpModal()" class="mt-2 text-sm font-semibold text-indigo-600 hover:underline">Go to Help &rarr;</button></div></div><div><h3 class="font-semibold text-lg">Submit a Query or Feedback</h3><form @submit.prevent="alert('Thank you for your feedback!'); closeHelpModal()"><textarea rows="4" placeholder="Have a suggestion or facing an issue with the dashboard? Let us know..." class="mt-2 w-full text-base p-3 rounded-md border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent" required></textarea><div class="flex justify-end mt-4"><button type="submit" class="px-5 py-2.5 text-base font-medium text-white bg-indigo-600 rounded-md shadow-sm hover:bg-indigo-700">Submit Feedback</button></div></form></div></div></div></div></div>
+        <div x-show="isRequestDetailsModalOpen" @keydown.escape.window="closeRequestDetailsModal()" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" x-cloak><div @click.away="closeRequestDetailsModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4" x-show="isRequestDetailsModalOpen" x-transition.scale><div class="p-6"><div class="flex justify-between items-center pb-3 border-b"><h2 class="text-xl font-bold">Request Details</h2><button @click="closeRequestDetailsModal()" class="text-slate-400 hover:text-slate-600 text-2xl">&times;</button></div><div class="mt-4 space-y-4" x-show="selectedRequest"><div class="p-4 space-y-3 text-sm flex-grow"><div class="border-b pb-2 mb-2"><div class="flex justify-between"><strong>Employee:</strong> <span class="font-medium" x-text="selectedRequest.requesterName"></span></div><div class="flex justify-between text-xs text-slate-500 pt-1"><span>Employee ID:</span> <span x-text="selectedRequest.employeeId"></span></div></div><div class="flex justify-between border-b pb-2"><strong>Requested:</strong> <span x-text="formatDate(selectedRequest.createdAt, true)"></span></div><div class="flex justify-between border-b pb-2"><strong>Fulfilled:</strong> <span x-text="formatDate(selectedRequest.completedAt, true)"></span></div><div class="flex justify-between border-b pb-2"><strong>Item:</strong> <span class="font-medium" x-text="`${selectedRequest.itemName} (Qty: ${selectedRequest.quantity})`"></span></div><div class="pt-2"><h4 class="font-semibold">Employee Comments:</h4><p class="text-slate-600 italic pl-2" x-text="selectedRequest.comments || 'No comments provided.'"></p></div><div class="pt-2"><h4 class="font-semibold" x-text="selectedRequest.fulfilledBy ? `Fulfillment Note by ${selectedRequest.fulfilledBy}:` : 'Fulfillment Note:'"></h4><p class="text-slate-600 italic pl-2" x-text="selectedRequest.fulfillmentNote || 'N/A'"></p></div></div><div class="mt-4 flex justify-end"><button @click="openChatModal(selectedRequest)" class="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700">View Chat History</button></div></div></div></div></div>
+    </div>
+    
+    <script>
+    const socket = io();
+
+    function storeDashboardApp() {
+        return {
+            sidebarOpen: true,
+            currentPage: 'dashboard',
+            isLoading: true,
+            currentUser: null, 
+            allRequests: [], 
+            stats: {}, 
+            broadcasts: [], 
+            notifications: [], 
+            unreadNotificationsCount: 0,
+            
+            pendingRequestFilter: 'all', 
+            pendingSearchQuery: '',
+            fulfilledSearchQuery: '',
+
+            isProfileModalOpen: false, editableUser: null, profilePicPreviewUrl: null,
+            isChatModalOpen: false, chatRequest: {}, chatHistory: [], chatMessageInput: '',
+            isUpdateStatusModalOpen: false, requestToUpdate: {}, newStatus: '', fulfillmentNoteInput: '',
+            isRequestDetailsModalOpen: false, selectedRequest: null,
+            newBroadcastMessage: '',
+            isHelpModalOpen: false,
+            
+            get filteredPendingRequests() {
+                let requests = this.allRequests.filter(r => r.status === 'Pending' || r.status === 'Approved');
+                if (this.pendingRequestFilter !== 'all') { requests = requests.filter(r => r.status === this.pendingRequestFilter); }
+                if (this.pendingSearchQuery.trim()) {
+                    const query = this.pendingSearchQuery.toLowerCase();
+                    return requests.filter(r => 
+                        (r.requesterName && r.requesterName.toLowerCase().includes(query)) || 
+                        (r.employeeId && r.employeeId.toLowerCase().includes(query)) || 
+                        (r.itemName && r.itemName.toLowerCase().includes(query)) ||
+                        (r.floorNumber && r.floorNumber.toLowerCase().includes(query)) ||
+                        (r.comments && r.comments.toLowerCase().includes(query))
+                    );
+                }
+                return requests;
+            },
+            get filteredFulfilledRequests() {
+                let requests = this.allRequests.filter(r => r.status === 'Delivered' || r.status === 'Cancelled');
+                if (this.fulfilledSearchQuery.trim()) {
+                    const query = this.fulfilledSearchQuery.toLowerCase();
+                    return requests.filter(r => 
+                        (r.requesterName && r.requesterName.toLowerCase().includes(query)) || 
+                        (r.employeeId && r.employeeId.toLowerCase().includes(query)) || 
+                        (r.itemName && r.itemName.toLowerCase().includes(query)) || 
+                        (r.fulfilledBy && r.fulfilledBy.toLowerCase().includes(query))
+                    );
+                }
+                return requests.sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt));
+            },
+            get recentRequests() {
+                return this.allRequests
+                    .filter(r => r.status === 'Pending' || r.status === 'Approved')
+                    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                    .slice(0, 5);
+            },
+            
+            initApp() { this.fetchData(); this.setupSocketListeners(); },
+
+            async fetchData() {
+                this.isLoading = true;
+                try {
+                    const [userRes, dataRes] = await Promise.all([
+                        fetch('/api/user-info'), 
+                        fetch('/api/store/dashboard-data') 
+                    ]);
+                    if (!userRes.ok || !dataRes.ok) throw new Error('Failed to fetch dashboard data.');
+                    this.currentUser = await userRes.json();
+                    const data = await dataRes.json();
+                    this.stats = data.stats || {};
+                    this.stats.resolvedToday = this.stats.deliveredToday;
+                    this.allRequests = (data.requests || []).map(r => ({...r, fulfilledBy: r.deliveredBy, fulfillmentNote: r.dispatchNote }));
+                    this.broadcasts = (data.broadcasts || []).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+                } catch (error) { console.error("Store Dashboard Loading Error:", error); alert(error.message); } 
+                finally { this.isLoading = false; }
+            },
+            
+            setupSocketListeners() {
+                const notifyAndRefresh = (data) => {
+                    this.fetchData();
+                    if (data && data.requesterName) {
+                        this.notifications.unshift({
+                            id: data._id || Date.now(),
+                            text: `New store request from <strong>${data.requesterName}</strong> for <strong>${data.itemName}</strong>`,
+                            time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute:'2-digit' })
+                        });
+                        this.unreadNotificationsCount++;
+                    }
+                };
+                socket.on('new-store-request', notifyAndRefresh);
+                socket.on('store-request-updated', () => this.fetchData());
+                socket.on('new-broadcast', (newPost) => this.broadcasts.unshift(newPost));
+                socket.on('chat-message', (msg) => {
+                    if (this.isChatModalOpen && this.chatRequest._id === msg.requestId) { this.chatHistory.push(msg); }
+                });
+            },
+
+            markNotificationsAsRead() { this.unreadNotificationsCount = 0; },
+            openHelpModal() { this.isHelpModalOpen = true; },
+            closeHelpModal() { this.isHelpModalOpen = false; },
+            
+            openUpdateStatusModal(request) { this.requestToUpdate = request; this.newStatus = request.status; this.fulfillmentNoteInput = request.fulfillmentNote || ''; this.isUpdateStatusModalOpen = true; },
+            closeUpdateStatusModal() { this.isUpdateStatusModalOpen = false; this.requestToUpdate = {}; },
+            async submitStatusUpdate() {
+                if (!this.requestToUpdate._id || !this.newStatus) return;
+                if ((this.newStatus === 'Delivered' || this.newStatus === 'Cancelled') && !this.fulfillmentNoteInput.trim()) {
+                    alert('A fulfillment note is required to complete this action.'); return;
+                }
+                try {
+                    const response = await fetch('/api/store/update-status', { 
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ requestId: this.requestToUpdate._id, status: this.newStatus, dispatchNote: this.fulfillmentNoteInput })
+                    });
+                    if (!response.ok) throw new Error('Failed to update status.');
+                    this.closeUpdateStatusModal();
+                } catch(error) { alert('Error updating status: ' + error.message); }
+            },
+            async openChatModal(request) {
+                this.closeRequestDetailsModal();
+                this.chatRequest = request;
+                this.isChatModalOpen = true;
+                this.chatHistory = [];
+                try {
+                    const response = await fetch(`/api/store/details/${request._id}`); 
+                    if (!response.ok) throw new Error('Could not load chat history.');
+                    const requestDetails = await response.json();
+                    this.chatHistory = requestDetails.chatHistory || [];
+                    socket.emit('join-chat-room', { type: 'store', requestId: request._id });
+                } catch (error) { this.chatHistory = [{ senderName: 'System', message: "Could not load chat history." }]; }
+            },
+            closeChatModal() { this.isChatModalOpen = false; this.chatMessageInput = ''; this.chatHistory = []; this.chatRequest = {}; },
+            sendChatMessage() {
+                if (!this.chatMessageInput.trim()) return;
+                socket.emit('send-chat-message', { type: 'store', requestId: this.chatRequest._id, message: this.chatMessageInput });
+                this.chatMessageInput = '';
+            },
+            openRequestDetailsModal(request) { this.selectedRequest = request; this.isRequestDetailsModalOpen = true; },
+            closeRequestDetailsModal() { this.isRequestDetailsModalOpen = false; this.selectedRequest = null; },
+            async sendBroadcast() {
+                if (!this.newBroadcastMessage.trim()) return;
+                try {
+                    const response = await fetch('/api/admin/create-broadcast', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message: this.newBroadcastMessage })
+                    });
+                    if (!response.ok) throw new Error('Failed to post broadcast.');
+                    this.newBroadcastMessage = '';
+                } catch(error) { alert(error.message); }
+            },
+            openProfileModal() { if (this.currentUser) { this.editableUser = JSON.parse(JSON.stringify(this.currentUser)); this.profilePicPreviewUrl = null; this.isProfileModalOpen = true; } },
+            closeProfileModal() { this.isProfileModalOpen = false; this.editableUser = null; },
+            handleProfilePicChange(event) {
+                const file = event.target.files[0];
+                if (file) { this.profilePicPreviewUrl = URL.createObjectURL(file); }
+            },
+            async saveProfileChanges() { 
+                try {
+                    const response = await fetch('/api/profile/update', {
+                        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ address: this.editableUser.address, phone: this.editableUser.phone, })
+                    });
+                    if (!response.ok) throw new Error('Failed to update profile.');
+                    this.currentUser = await response.json();
+                    alert('Profile changes saved successfully!');
+                    this.closeProfileModal();
+                } catch(error) { alert(error.message); }
+            },
+            downloadCSV() {
+                const requests = this.filteredFulfilledRequests;
+                if(requests.length === 0) {
+                    alert("No data to download.");
+                    return;
+                }
+                const headers = ['Fulfilled At', 'Employee Name', 'Employee ID', 'Item Name', 'Status', 'Fulfilled By', 'Fulfillment Note'];
+                const rows = requests.map(r => [
+                    `"${this.formatDate(r.completedAt, true)}"`,
+                    `"${r.requesterName}"`,
+                    `"${r.employeeId}"`,
+                    `"${r.itemName}"`,
+                    `"${r.status}"`,
+                    `"${r.fulfilledBy || ''}"`,
+                    `"${(r.fulfillmentNote || '').replace(/"/g, '""')}"`
+                ].join(','));
+                const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows].join('\n');
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", "fulfilled_requests_archive.csv");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            },
+            
+            isActive(page) { return this.currentPage === page ? 'bg-indigo-600 text-white shadow' : 'hover:bg-slate-100'; },
+            formatDate(dateString, includeTime = true) {
+                if (!dateString) return 'N/A';
+                const options = { day: 'numeric', month: 'short', year: 'numeric' };
+                if (includeTime) { options.hour = '2-digit'; options.minute = '2-digit'; }
+                return new Date(dateString).toLocaleDateString('en-IN', options);
+            },
+        }
+    }
+
+    function liveClock() {
+        return {
+            time: '', date: '',
+            start() { this.updateTime(); setInterval(() => { this.updateTime(); }, 1000); },
+            updateTime() {
+                const now = new Date();
+                this.time = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+                this.date = now.toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' });
+            }
+        }
+    }
+    </script>
+</body>
+</html>

@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canteen Dashboard - JC NEXUS HUB</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
+
+    <style>
+        body { font-family: 'Poppins', sans-serif; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #a5b4fc; border-radius: 10px; }
+        .sidebar-collapsed .nav-text, .sidebar-collapsed .logo-text, .sidebar-collapsed .profile-text, .sidebar-collapsed .nav-divider, .sidebar-collapsed .nav-section-title { display: none; }
+        .sidebar-collapsed .nav-item { justify-content: center; }
+        .sidebar-collapsed .logo-container { justify-content: center; padding-left: 0; padding-right: 0;}
+        [x-cloak] { display: none !important; }
+        .loading-spinner { border-top-color: #4338ca; animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        
+        .status-badge { padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.8rem; font-weight: 600; text-transform: capitalize; }
+        .status-pending { background-color: #fef9c3; color: #ca8a04; }
+        .status-preparing { background-color: #cffafe; color: #0891b2; }
+        .status-ready-for-pickup { background-color: #e0e7ff; color: #4338ca; }
+        .status-delivered { background-color: #dcfce7; color: #16a34a; }
+        .status-cancelled { background-color: #fee2e2; color: #dc2626; }
+
+        .nav-section-title {
+            padding: 0.5rem 1.25rem;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .chat-bubble-user { background-color: #e0e7ff; color: #3730a3; border-radius: 20px 20px 0 20px; }
+        .chat-bubble-canteen { background-color: #f1f5f9; color: #334155; border-radius: 20px 20px 20px 0; }
+        
+        @media print {
+            body * { visibility: hidden; }
+            #bill-modal, #bill-modal * { visibility: visible; }
+            #bill-modal { position: absolute; left: 0; top: 0; width: 100%; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 antialiased">
+
+    <div x-data="canteenDashboardApp()" x-init="initApp()" class="flex h-screen bg-slate-100">
+        
+        <aside 
+            :class="sidebarOpen ? 'w-72' : 'w-24 sidebar-collapsed'"
+            class="bg-white text-slate-700 flex flex-col transition-all duration-300 ease-in-out shadow-lg print:hidden">
+            
+            <div class="flex items-center h-20 px-6 border-b border-slate-200 logo-container transition-all duration-300">
+                <img src="/logo.png" alt="JC NEXUS Hub Logo" class="h-10 w-auto flex-shrink-0 rounded-full">
+                <span class="ml-4 text-xl font-bold logo-text whitespace-nowrap">JC NEXUS HUB</span>
+            </div>
+
+            <nav class="flex-1 px-5 py-8 space-y-2 overflow-y-auto">
+                <a href="#" @click.prevent="currentPage = 'dashboard'" :class="isActive('dashboard')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                    <i class="fa-solid fa-chart-pie h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                    <span class="ml-4 text-base font-medium nav-text">Dashboard</span>
+                </a>
+                <a href="#" @click.prevent="currentPage = 'allPending'" :class="isActive('allPending')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                    <i class="fa-solid fa-clock h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                    <span class="ml-4 text-base font-medium nav-text">All Pending Requests</span>
+                </a>
+
+                <div class="pt-4 nav-divider"><hr class="border-t border-slate-200"></div>
+                
+                <div>
+                    <h3 class="nav-section-title">Order - Beverage</h3>
+                    <a href="#" @click.prevent="currentPage = 'beverageLive'" :class="isActive('beverageLive')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                        <i class="fa-solid fa-mug-hot h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                        <span class="ml-4 text-base font-medium nav-text">Live Requests</span>
+                    </a>
+                    <a href="#" @click.prevent="currentPage = 'beverageHistory'" :class="isActive('beverageHistory')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                        <i class="fa-solid fa-history h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                        <span class="ml-4 text-base font-medium nav-text">Full History</span>
+                    </a>
+                    <a href="#" @click.prevent="currentPage = 'beverageToday'" :class="isActive('beverageToday')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                        <i class="fa-solid fa-calculator h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                        <span class="ml-4 text-base font-medium nav-text">Today's Total Orders</span>
+                    </a>
+                </div>
+
+                <div class="pt-4 nav-divider"><hr class="border-t border-slate-200"></div>
+                
+                <div>
+                    <h3 class="nav-section-title">Pre-Order Food</h3>
+                    <a href="#" @click.prevent="currentPage = 'foodLive'" :class="isActive('foodLive')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                        <i class="fa-solid fa-utensils h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                        <span class="ml-4 text-base font-medium nav-text">Live Requests</span>
+                    </a>
+                     <a href="#" @click.prevent="currentPage = 'foodBilling'" :class="isActive('foodBilling')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                        <i class="fa-solid fa-file-invoice h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                        <span class="ml-4 text-base font-medium nav-text">Billing</span>
+                    </a>
+                    <a href="#" @click.prevent="currentPage = 'foodHistory'" :class="isActive('foodHistory')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                         <i class="fa-solid fa-history h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                        <span class="ml-4 text-base font-medium nav-text">Full History</span>
+                    </a>
+                    <a href="#" @click.prevent="currentPage = 'foodBills'" :class="isActive('foodBills')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                        <i class="fa-solid fa-file-invoice-dollar h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                        <span class="ml-4 text-base font-medium nav-text">Employee Bills</span>
+                    </a>
+                    <a href="#" @click.prevent="currentPage = 'foodTiming'" :class="isActive('foodTiming')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                        <i class="fa-solid fa-calendar-day h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                        <span class="ml-4 text-base font-medium nav-text">Today's Timing Report</span>
+                    </a>
+                </div>
+
+                <div class="pt-4 nav-divider"><hr class="border-t border-slate-200"></div>
+                
+                <a href="#" @click.prevent="currentPage = 'broadcasts'" :class="isActive('broadcasts')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                    <i class="fa-solid fa-bullhorn h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                    <span class="ml-4 text-base font-medium nav-text">Broadcast</span>
+                </a>
+                <a href="#" @click.prevent="currentPage = 'help'" :class="isActive('help')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                    <i class="fa-solid fa-circle-question h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                    <span class="ml-4 text-base font-medium nav-text">Help & Query</span>
+                </a>
+            </nav>
+
+            <div @click="openProfileModal()" class="p-4 border-t border-slate-200 mt-auto cursor-pointer hover:bg-slate-50 transition-colors">
+                 <div class="flex items-center" :class="!sidebarOpen && 'justify-center'">
+                    <div class="flex-shrink-0">
+                        <template x-if="currentUser && currentUser.pic"><img :src="currentUser.pic" alt="Profile" class="h-12 w-12 rounded-full object-cover"></template>
+                        <template x-if="!currentUser || !currentUser.pic"><div class="h-12 w-12 rounded-full bg-indigo-500 text-white flex items-center justify-center text-xl font-semibold"><span x-text="currentUser ? currentUser.fullName.charAt(0) : '?'"></span></div></template>
+                    </div>
+                    <div class="ml-4 profile-text">
+                        <p class="text-base font-semibold" x-text="currentUser ? currentUser.fullName : 'Loading...'"></p>
+                        <p class="text-sm text-slate-500" x-text="currentUser ? currentUser.role : '...'"></p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <header class="flex items-center justify-between h-20 px-8 bg-white border-b border-slate-200 print:hidden">
+                <button @click="sidebarOpen = !sidebarOpen" class="text-slate-500 hover:text-indigo-600 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"><svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg></button>
+                <div class="flex items-center space-x-4">
+                    <div x-data="liveClock()" x-init="start()" class="text-base text-slate-600 hidden md:block">
+                        <span x-text="date"></span>, <span x-text="time" class="font-medium text-slate-800"></span>
+                    </div>
+
+                    <div x-data="{ open: false }" class="relative">
+                        <button @click="open = !open; markNotificationsAsRead()" class="relative p-3 text-slate-500 bg-slate-100 rounded-full hover:bg-slate-200 focus:outline-none" title="Notifications">
+                            <span class="sr-only">View notifications</span>
+                            <i class="fa-solid fa-bell text-xl"></i>
+                            <span x-show="unreadNotificationsCount > 0" class="absolute top-1 right-1 h-3 w-3 bg-red-500 rounded-full border-2 border-white"></span>
+                        </button>
+                        <div x-show="open" @click.away="open = false" x-transition class="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border z-50" x-cloak>
+                            <div class="p-4 font-semibold border-b">Notifications</div>
+                            <div class="p-2 max-h-96 overflow-y-auto">
+                                <template x-for="notification in notifications" :key="notification.id">
+                                    <div class="p-3 rounded-lg hover:bg-slate-50 cursor-pointer" @click="open = false;">
+                                        <p class="text-sm" x-html="notification.text"></p>
+                                        <p class="text-xs text-slate-500 mt-1" x-text="notification.time"></p>
+                                    </div>
+                                </template>
+                                <div x-show="notifications.length === 0" class="text-center p-8 text-slate-500 text-sm">
+                                    <i class="fa-regular fa-circle-check text-5xl text-slate-400"></i>
+                                    <p class="mt-2 font-semibold">You're all caught up!</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button @click="openHelpModal()" class="p-3 text-slate-500 bg-slate-100 rounded-full hover:bg-slate-200 focus:outline-none" title="Help & Support">
+                        <span class="sr-only">Help & Support</span>
+                        <i class="fa-solid fa-question-circle text-xl"></i>
+                    </button>
+                    
+                    <a href="/logout" class="p-3 text-slate-500 bg-slate-100 rounded-full hover:bg-slate-200 hover:text-red-600 focus:outline-none" title="Logout">
+                        <span class="sr-only">Logout</span>
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                    </a>
+                </div>
+            </header>
+            
+            <main class="flex-1 overflow-x-hidden overflow-y-auto bg-slate-100">
+                <div x-show="isLoading" class="flex items-center justify-center h-full"><div class="flex items-center space-x-3"><div class="w-10 h-10 border-4 border-indigo-200 rounded-full loading-spinner"></div><p class="text-lg font-medium">Loading Canteen Dashboard...</p></div></div>
+
+                <div x-show="!isLoading && currentPage === 'dashboard'" x-cloak class="p-8 space-y-8">
+                    <div><h1 class="text-4xl font-bold">Canteen Dashboard</h1><p class="text-lg text-slate-600 mt-1">Live overview of all canteen operations.</p></div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div class="bg-white rounded-xl shadow-md border border-slate-200 p-6 flex items-center justify-between"><div><p class="text-base font-medium text-slate-500">Pending Food Orders</p><p class="text-4xl font-bold" x-text="stats.pendingFood || 0"></p></div><div class="p-4 rounded-full bg-amber-100 text-amber-600"><i class="fa-solid fa-utensils text-2xl"></i></div></div>
+                        <div class="bg-white rounded-xl shadow-md border border-slate-200 p-6 flex items-center justify-between"><div><p class="text-base font-medium text-slate-500">Pending Beverages</p><p class="text-4xl font-bold" x-text="stats.pendingBeverage || 0"></p></div><div class="p-4 rounded-full bg-sky-100 text-sky-600"><i class="fa-solid fa-mug-hot text-2xl"></i></div></div>
+                        <div class="bg-white rounded-xl shadow-md border border-slate-200 p-6 flex items-center justify-between"><div><p class="text-base font-medium text-slate-500">Delivered Today</p><p class="text-4xl font-bold" x-text="stats.deliveredToday || 0"></p></div><div class="p-4 rounded-full bg-green-100 text-green-600"><i class="fa-solid fa-circle-check text-2xl"></i></div></div>
+                    </div>
+
+                    <div>
+                        <h2 class="text-3xl font-bold pt-6 border-t mt-10">Today's Menu</h2>
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                            <template x-for="category in menuItems" :key="category.name">
+                                <div class="bg-white rounded-xl shadow-md border border-slate-200 p-6">
+                                    <h3 class="text-xl font-bold mb-3" x-text="category.icon + ' ' + category.name"></h3>
+                                    <ul class="space-y-1.5 text-slate-700">
+                                        <template x-for="item in category.items" :key="item">
+                                            <li class="pl-2 border-l-2 border-indigo-200" x-text="item"></li>
+                                        </template>
+                                    </ul>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+                
+                <div x-show="!isLoading && currentPage === 'allPending'" x-cloak class="p-8 space-y-6">
+                   <div><h1 class="text-4xl font-bold">All Pending Requests</h1><p class="text-lg text-slate-600 mt-1">A combined real-time view of all pending food and beverage orders.</p></div>
+                   <div class="bg-white rounded-xl shadow-md border border-slate-200 overflow-x-auto">
+                       <table class="w-full text-base text-left">
+                           <thead class="text-sm text-slate-700 uppercase bg-slate-100"><tr><th class="px-6 py-4">Time</th><th class="px-6 py-4">Employee</th><th class="px-6 py-4">Type</th><th class="px-6 py-4">Details</th><th class="px-6 py-4">Status</th><th class="px-6 py-4">Actions</th></tr></thead>
+                           <tbody class="divide-y divide-slate-200">
+                               <template x-for="order in filteredAllPending" :key="order._id">
+                                   <tr class="hover:bg-slate-50 transition-colors duration-200">
+                                       <td class="px-6 py-5" x-text="formatDate(order.createdAt)"></td>
+                                       <td class="px-6 py-5"><div class="font-medium" x-text="order.requesterName"></div><div class="text-sm text-slate-500" x-text="order.employeeId"></div></td>
+                                       <td class="px-6 py-5"><span class="font-semibold px-3 py-1 rounded-full text-xs" x-text="order.type" :class="order.type === 'food' ? 'bg-amber-100 text-amber-700' : 'bg-sky-100 text-sky-700'"></span></td>
+                                       <td class="px-6 py-5 font-medium" x-text="order.type === 'food' ? summarizeItems(order.items) : order.beverage"></td>
+                                       <td class="px-6 py-5"><span class="status-badge" :class="getStatusClass(order.status)" x-text="order.status"></span></td>
+                                       <td class="px-6 py-5"><button @click="openUpdateStatusModal(order)" class="px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700">Update</button></td>
+                                   </tr>
+                               </template>
+                               <tr x-show="filteredAllPending.length === 0"><td colspan="6" class="text-center py-12 text-slate-500"><p class="font-semibold text-lg">No pending orders at the moment.</p></td></tr>
+                           </tbody>
+                       </table>
+                   </div>
+                </div>
+
+                 <div x-show="!isLoading && currentPage === 'beverageLive'" x-cloak class="p-8 space-y-6">
+                    <div><h1 class="text-4xl font-bold">Live Beverage Requests</h1><p class="text-lg text-slate-600 mt-1">Manage incoming beverage orders for delivery.</p></div>
+                    <div class="bg-white rounded-xl shadow-md border border-slate-200 p-4 flex items-center gap-4">
+                        <div class="flex-grow"><input type="search" x-model="searchQuery" placeholder="Search by employee, ID, or beverage..." class="w-full text-base px-4 py-2 rounded-md bg-slate-100 border-transparent focus:ring-2 focus:ring-indigo-500"></div>
+                        <div>
+                            <label for="bevLiveDeptFilter" class="text-sm font-medium">Department:</label>
+                            <select id="bevLiveDeptFilter" x-model="departmentFilter" class="ml-2 rounded-md border-slate-300">
+                                <template x-for="dept in departments" :key="dept"><option :value="dept" x-text="dept.charAt(0).toUpperCase() + dept.slice(1)"></option></template>
+                            </select>
+                        </div>
+                    </div>
+                     <div class="bg-white rounded-xl shadow-md border border-slate-200 overflow-x-auto">
+                        <table class="w-full text-base text-left">
+                           <thead class="text-sm text-slate-700 uppercase bg-slate-100"><tr><th class="px-6 py-4">Time</th><th class="px-6 py-4">Employee</th><th class="px-6 py-4">Beverage</th><th class="px-6 py-4">Location</th><th class="px-6 py-4">Instructions</th><th class="px-6 py-4">Status</th><th class="px-6 py-4">Actions</th></tr></thead>
+                           <tbody class="divide-y divide-slate-200">
+                               <template x-for="order in filteredActiveBeverageOrders" :key="order._id">
+                                   <tr class="hover:bg-slate-50 transition-colors duration-200">
+                                       <td class="px-6 py-5" x-text="formatDate(order.createdAt)"></td>
+                                       <td class="px-6 py-5"><div class="font-medium" x-text="order.requesterName"></div><div class="text-sm text-slate-500" x-text="order.employeeId"></div></td>
+                                       <td class="px-6 py-5 font-medium" x-text="order.beverage"></td>
+                                       <td class="px-6 py-5" x-text="order.floorNumber + ', Desk ' + order.deskNumber"></td>
+                                       <td class="px-6 py-5 text-sm text-slate-500" x-text="order.instructions || '-'"></td>
+                                       <td class="px-6 py-5"><span class="status-badge" :class="getStatusClass(order.status)" x-text="order.status"></span></td>
+                                       <td class="px-6 py-5 space-x-2">
+                                            <button @click="openUpdateStatusModal(order)" class="px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700">Update</button>
+                                            <button @click="openChatModal(order)" class="px-3 py-2 text-sm font-medium text-indigo-600 bg-indigo-100 rounded-md hover:bg-indigo-200" title="View Chat"><i class="fa-solid fa-comments"></i></button>
+                                       </td>
+                                   </tr>
+                               </template>
+                               <tr x-show="filteredActiveBeverageOrders.length === 0"><td colspan="7" class="text-center py-12 text-slate-500"><p class="font-semibold text-lg">No matching active beverage orders found.</p></td></tr>
+                           </tbody>
+                       </table>
+                    </div>
+                </div>
+
+                <div x-show="!isLoading && currentPage === 'beverageHistory'" x-cloak class="p-8 space-y-6">
+                    <div><h1 class="text-4xl font-bold">Beverage Order History</h1><p class="text-lg text-slate-600 mt-1">Archive of all completed and cancelled beverage orders.</p></div>
+                    <div class="bg-white rounded-xl shadow-md border border-slate-200 p-4 flex flex-wrap items-center gap-4">
+                        <div class="flex-grow"><input type="search" x-model="searchQuery" placeholder="Search by employee, ID, or beverage..." class="w-full text-base px-4 py-2 rounded-md bg-slate-100 border-transparent focus:ring-2 focus:ring-indigo-500"></div>
+                        <div>
+                            <label for="bevHistDeptFilter" class="text-sm font-medium">Department:</label>
+                            <select id="bevHistDeptFilter" x-model="departmentFilter" class="ml-2 rounded-md border-slate-300">
+                                <template x-for="dept in departments" :key="dept"><option :value="dept" x-text="dept.charAt(0).toUpperCase() + dept.slice(1)"></option></template>
+                            </select>
+                        </div>
+                        <button @click="downloadHistoryCSV('beverage')" class="px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700 flex items-center gap-2">
+                            <i class="fa-solid fa-download"></i> Download CSV
+                        </button>
+                    </div>
+                     <div class="bg-white rounded-xl shadow-md border border-slate-200 overflow-x-auto">
+                        <table class="w-full text-base text-left">
+                           <thead class="text-sm text-slate-700 uppercase bg-slate-100"><tr><th class="px-6 py-4">Completed At</th><th class="px-6 py-4">Employee</th><th class="px-6 py-4">Beverage</th><th class="px-6 py-4">Location</th><th class="px-6 py-4">Status</th><th class="px-6 py-4">Rating</th><th class="px-6 py-4">Actions</th></tr></thead>
+                           <tbody class="divide-y divide-slate-200">
+                               <template x-for="order in filteredBeverageHistory" :key="order._id">
+                                   <tr class="hover:bg-slate-50 transition-colors duration-200">
+                                       <td class="px-6 py-5" x-text="formatDate(order.completedAt)"></td>
+                                       <td class="px-6 py-5"><div class="font-medium" x-text="order.requesterName"></div><div class="text-sm text-slate-500" x-text="order.employeeId"></div></td>
+                                       <td class="px-6 py-5 font-medium" x-text="order.beverage"></td>
+                                       <td class="px-6 py-5" x-text="order.floorNumber + ', Desk ' + order.deskNumber"></td>
+                                       <td class="px-6 py-5"><span class="status-badge" :class="getStatusClass(order.status)" x-text="order.status"></span></td>
+                                       <td class="px-6 py-5" x-html="displayRating(order.rating)"></td>
+                                       <td class="px-6 py-5"><button @click="openChatModal(order)" class="px-3 py-2 text-sm font-medium text-indigo-600 bg-indigo-100 rounded-md hover:bg-indigo-200" title="View Chat"><i class="fa-solid fa-comments"></i> View Chat</button></td>
+                                   </tr>
+                               </template>
+                               <tr x-show="filteredBeverageHistory.length === 0"><td colspan="7" class="text-center py-12 text-slate-500"><p class="font-semibold text-lg">No beverage history found for the selected criteria.</p></td></tr>
+                           </tbody>
+                       </table>
+                    </div>
+                </div>
+
+                 <div x-show="!isLoading && currentPage === 'beverageToday'" x-cloak class="p-8 space-y-6">
+                    <div><h1 class="text-4xl font-bold">Today's Beverage Report</h1><p class="text-lg text-slate-600 mt-1">A summary of all beverage orders placed today.</p></div>
+                    <div class="bg-white rounded-xl shadow-md border border-slate-200 p-6">
+                        <h2 class="text-2xl font-bold mb-4">Total Orders Today: <span x-text="beverageTodayStats.total" class="text-indigo-600"></span></h2>
+                        <ul class="space-y-3 list-disc list-inside">
+                            <template x-for="[beverage, count] in beverageTodayStats.summary">
+                                <li class="text-lg"><span class="font-semibold" x-text="beverage + ':'"></span> <span class="text-slate-600" x-text="count + ' orders'"></span></li>
+                            </template>
+                        </ul>
+                        <div x-show="beverageTodayStats.total === 0" class="text-center py-8 text-slate-500">
+                             <p class="font-semibold text-lg">No beverage orders have been placed today.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div x-show="!isLoading && currentPage === 'foodLive'" x-cloak class="p-8 space-y-6">
+                    <div><h1 class="text-4xl font-bold">Live Food Requests</h1><p class="text-lg text-slate-600 mt-1">Manage active food pre-orders.</p></div>
+                    <div class="bg-white rounded-xl shadow-md border border-slate-200 p-4 flex items-center gap-4">
+                        <div class="flex-grow"><input type="search" x-model="searchQuery" placeholder="Search by employee, ID, or items..." class="w-full text-base px-4 py-2 rounded-md bg-slate-100 border-transparent focus:ring-2 focus:ring-indigo-500"></div>
+                        <div>
+                            <label for="foodLiveDeptFilter" class="text-sm font-medium">Department:</label>
+                            <select id="foodLiveDeptFilter" x-model="departmentFilter" class="ml-2 rounded-md border-slate-300">
+                                <template x-for="dept in departments" :key="dept"><option :value="dept" x-text="dept.charAt(0).toUpperCase() + dept.slice(1)"></option></template>
+                            </select>
+                        </div>
+                    </div>
+                     <div class="bg-white rounded-xl shadow-md border border-slate-200 overflow-x-auto">
+                        <table class="w-full text-base text-left">
+                           <thead class="text-sm text-slate-700 uppercase bg-slate-100"><tr><th class="px-6 py-4">Time</th><th class="px-6 py-4">Employee</th><th class="px-6 py-4">Items</th><th class="px-6 py-4">Dietary Comments</th><th class="px-6 py-4">Custom Request</th><th class="px-6 py-4">Delivery</th><th class="px-6 py-4">Total</th><th class="px-6 py-4">Status</th><th class="px-6 py-4">Actions</th></tr></thead>
+                           <tbody class="divide-y divide-slate-200">
+                               <template x-for="order in filteredActiveFoodOrders" :key="order._id">
+                                   <tr class="hover:bg-slate-50 transition-colors duration-200">
+                                       <td class="px-6 py-5" x-text="formatDate(order.createdAt)"></td>
+                                       <td class="px-6 py-5"><div class="font-medium" x-text="order.requesterName"></div><div class="text-sm text-slate-500" x-text="order.employeeId"></div></td>
+                                       <td class="px-6 py-5 font-medium" x-text="summarizeItems(order.items)"></td>
+                                       <td class="px-6 py-5 text-sm text-slate-600" x-text="order.instructions || 'None'"></td>
+                                       <td class="px-6 py-5 text-sm text-slate-600" x-text="order.customFoodRequest || 'None'"></td>
+                                       <td class="px-6 py-5" x-text="order.timePreference"></td>
+                                       <td class="px-6 py-5 font-bold" x-text="'₹' + order.totalPrice.toFixed(2)"></td>
+                                       <td class="px-6 py-5"><span class="status-badge" :class="getStatusClass(order.status)" x-text="order.status"></span></td>
+                                       <td class="px-6 py-5 space-x-2">
+                                            <button @click="openUpdateStatusModal(order)" class="px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700">Update</button>
+                                            <button @click="openChatModal(order)" class="px-3 py-2 text-sm font-medium text-indigo-600 bg-indigo-100 rounded-md hover:bg-indigo-200" title="View Chat"><i class="fa-solid fa-comments"></i></button>
+                                       </td>
+                                   </tr>
+                               </template>
+                               <tr x-show="filteredActiveFoodOrders.length === 0"><td colspan="9" class="text-center py-12 text-slate-500"><p class="font-semibold text-lg">No matching active food orders found.</p></td></tr>
+                           </tbody>
+                       </table>
+                    </div>
+                </div>
+                
+                <div x-show="!isLoading && currentPage === 'foodBilling'" x-cloak class="p-8 space-y-6">
+                    <div><h1 class="text-4xl font-bold">Food Order Billing</h1><p class="text-lg text-slate-600 mt-1">Generate bills and complete food orders.</p></div>
+                    <div class="bg-white rounded-xl shadow-md border border-slate-200 overflow-x-auto">
+                        <table class="w-full text-base text-left">
+                            <thead class="text-sm text-slate-700 uppercase bg-slate-100"><tr><th class="px-6 py-4">Order Time</th><th class="px-6 py-4">Employee</th><th class="px-6 py-4">Items</th><th class="px-6 py-4">Payment</th><th class="px-6 py-4">Total</th><th class="px-6 py-4">Status</th><th class="px-6 py-4">Actions</th></tr></thead>
+                            <tbody class="divide-y divide-slate-200">
+                                <template x-for="order in billableFoodOrders" :key="order._id">
+                                    <tr class="hover:bg-slate-50 transition-colors duration-200">
+                                        <td class="px-6 py-5" x-text="formatDate(order.createdAt)"></td>
+                                        <td class="px-6 py-5"><div class="font-medium" x-text="order.requesterName"></div><div class="text-sm text-slate-500" x-text="order.employeeId"></div></td>
+                                        <td class="px-6 py-5 font-medium" x-text="summarizeItems(order.items)"></td>
+                                        <td class="px-6 py-5" x-text="order.paymentMethod"></td>
+                                        <td class="px-6 py-5 font-bold" x-text="'₹' + order.totalPrice.toFixed(2)"></td>
+                                        <td class="px-6 py-5"><span class="status-badge" :class="getStatusClass(order.status)" x-text="order.status"></span></td>
+                                        <td class="px-6 py-5"><button @click="openBillingModal(order)" class="px-3 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700">Generate Bill</button></td>
+                                    </tr>
+                                </template>
+                                <tr x-show="billableFoodOrders.length === 0"><td colspan="7" class="text-center py-12 text-slate-500"><p class="font-semibold text-lg">No food orders ready for billing.</p></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div x-show="!isLoading && currentPage === 'foodHistory'" x-cloak class="p-8 space-y-6">
+                    <div><h1 class="text-4xl font-bold">Food Order History</h1><p class="text-lg text-slate-600 mt-1">Archive of all completed and cancelled food orders.</p></div>
+                    <div class="bg-white rounded-xl shadow-md border border-slate-200 p-4 flex flex-wrap items-center gap-4">
+                        <div class="flex-grow"><input type="search" x-model="searchQuery" placeholder="Search by employee, ID, or items..." class="w-full text-base px-4 py-2 rounded-md bg-slate-100 border-transparent focus:ring-2 focus:ring-indigo-500"></div>
+                        <div>
+                            <label for="foodHistDeptFilter" class="text-sm font-medium">Department:</label>
+                            <select id="foodHistDeptFilter" x-model="departmentFilter" class="ml-2 rounded-md border-slate-300">
+                                <template x-for="dept in departments" :key="dept"><option :value="dept" x-text="dept.charAt(0).toUpperCase() + dept.slice(1)"></option></template>
+                            </select>
+                        </div>
+                        <button @click="downloadHistoryCSV('food')" class="px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700 flex items-center gap-2">
+                           <i class="fa-solid fa-download"></i> Download CSV
+                        </button>
+                    </div>
+                     <div class="bg-white rounded-xl shadow-md border border-slate-200 overflow-x-auto">
+                        <table class="w-full text-base text-left">
+                           <thead class="text-sm text-slate-700 uppercase bg-slate-100"><tr><th class="px-6 py-4">Completed At</th><th class="px-6 py-4">Employee</th><th class="px-6 py-4">Items</th><th class="px-6 py-4">Total</th><th class="px-6 py-4">Status</th><th class="px-6 py-4">Rating</th><th class="px-6 py-4">Actions</th></tr></thead>
+                           <tbody class="divide-y divide-slate-200">
+                               <template x-for="order in filteredFoodHistory" :key="order._id">
+                                   <tr class="hover:bg-slate-50 transition-colors duration-200">
+                                       <td class="px-6 py-5" x-text="formatDate(order.completedAt)"></td>
+                                       <td class="px-6 py-5"><div class="font-medium" x-text="order.requesterName"></div><div class="text-sm text-slate-500" x-text="order.employeeId"></div></td>
+                                       <td class="px-6 py-5 font-medium" x-text="summarizeItems(order.items)"></td>
+                                       <td class="px-6 py-5 font-bold" x-text="'₹' + order.totalPrice.toFixed(2)"></td>
+                                       <td class="px-6 py-5"><span class="status-badge" :class="getStatusClass(order.status)" x-text="order.status"></span></td>
+                                       <td class="px-6 py-5" x-html="displayRating(order.rating)"></td>
+                                       <td class="px-6 py-5 flex items-center space-x-2">
+                                            <button @click="openBillingModal(order)" class="px-3 py-2 text-sm font-medium text-slate-600 bg-slate-100 rounded-md hover:bg-slate-200" title="View Bill"><i class="fa-solid fa-receipt"></i> View Bill</button>
+                                            <button @click="openChatModal(order)" class="px-3 py-2 text-sm font-medium text-indigo-600 bg-indigo-100 rounded-md hover:bg-indigo-200" title="View Chat"><i class="fa-solid fa-comments"></i> View Chat</button>
+                                       </td>
+                                   </tr>
+                               </template>
+                               <tr x-show="filteredFoodHistory.length === 0"><td colspan="7" class="text-center py-12 text-slate-500"><p class="font-semibold text-lg">No food order history found for the selected criteria.</p></td></tr>
+                           </tbody>
+                       </table>
+                    </div>
+                </div>
+
+                <div x-show="!isLoading && currentPage === 'foodBills'" x-cloak class="p-8 space-y-6">
+                    <div><h1 class="text-4xl font-bold">Employee Food Bills</h1><p class="text-lg text-slate-600 mt-1">Aggregated food bills for all employees. Click on a row to see detailed order history.</p></div>
+                    <div class="bg-white rounded-xl shadow-md border border-slate-200 p-4 flex items-center gap-4">
+                        <div class="flex-grow"><input type="search" x-model="searchQuery" placeholder="Search by employee name or ID..." class="w-full text-base px-4 py-2 rounded-md bg-slate-100 border-transparent focus:ring-2 focus:ring-indigo-500"></div>
+                        <div>
+                            <label for="billDeptFilter" class="text-sm font-medium">Department:</label>
+                            <select id="billDeptFilter" x-model="departmentFilter" class="ml-2 rounded-md border-slate-300">
+                                <template x-for="dept in departments" :key="dept"><option :value="dept" x-text="dept.charAt(0).toUpperCase() + dept.slice(1)"></option></template>
+                            </select>
+                        </div>
+                    </div>
+                     <div class="bg-white rounded-xl shadow-md border border-slate-200 overflow-x-auto">
+                        <table class="w-full text-base text-left">
+                           <thead class="text-sm text-slate-700 uppercase bg-slate-100"><tr><th class="px-6 py-4">Employee</th><th class="px-6 py-4">Department</th><th class="px-6 py-4">Total Orders</th><th class="px-6 py-4">Total Bill</th></tr></thead>
+                           <tbody class="divide-y divide-slate-200">
+                               <template x-for="bill in filteredFoodBills" :key="bill.employeeId">
+                                   <tr @click="openUserOrdersModal(bill)" class="hover:bg-indigo-50 transition-colors duration-200 cursor-pointer">
+                                       <td class="px-6 py-5">
+                                           <div class="flex items-center">
+                                               <img class="h-10 w-10 rounded-full mr-4 object-cover bg-slate-200" :src="bill.pic || 'https://via.placeholder.com/40'" alt="Avatar">
+                                               <div>
+                                                   <div class="font-medium" x-text="bill.fullName"></div>
+                                                   <div class="text-sm text-slate-500" x-text="bill.employeeId"></div>
+                                               </div>
+                                           </div>
+                                       </td>
+                                       <td class="px-6 py-5" x-text="bill.department || 'N/A'"></td>
+                                       <td class="px-6 py-5 text-center font-medium" x-text="bill.totalOrders"></td>
+                                       <td class="px-6 py-5 font-bold text-lg" x-text="'₹' + bill.totalBill.toFixed(2)"></td>
+                                   </tr>
+                               </template>
+                               <tr x-show="filteredFoodBills.length === 0"><td colspan="4" class="text-center py-12 text-slate-500"><p class="font-semibold text-lg">No billing data found for the selected criteria.</p></td></tr>
+                           </tbody>
+                       </table>
+                    </div>
+                </div>
+
+                <div x-show="!isLoading && currentPage === 'foodTiming'" x-cloak class="p-8 space-y-6">
+                    <div><h1 class="text-4xl font-bold">Today's Food Order Timings</h1><p class="text-lg text-slate-600 mt-1">A breakdown of food orders based on their requested time.</p></div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <template x-for="[timing, count] in Object.entries(foodTimingReport)">
+                            <div class="bg-white rounded-xl shadow-md border border-slate-200 p-6">
+                                <p class="text-base font-medium text-slate-500" x-text="timing"></p>
+                                <p class="text-4xl font-bold" x-text="count"></p>
+                            </div>
+                        </template>
+                    </div>
+                     <div x-show="Object.keys(foodTimingReport).length === 0" class="bg-white rounded-xl shadow-md border border-slate-200 p-12 text-center">
+                        <p class="font-semibold text-lg text-slate-500">No food orders have been placed today.</p>
+                    </div>
+                </div>
+
+                <div x-show="!isLoading && currentPage === 'broadcasts'" x-cloak class="p-8 space-y-8">
+                      <div><h1 class="text-4xl font-bold">Manage Broadcasts</h1><p class="text-lg text-slate-600 mt-1">Create and view announcements for all employees.</p></div>
+                      <div class="max-w-4xl mx-auto space-y-8">
+                          <div class="bg-white rounded-xl shadow-md border border-slate-200 p-6"><h3 class="text-xl font-bold mb-4">Create New Broadcast</h3><form @submit.prevent="sendBroadcast"><textarea x-model="newBroadcastMessage" rows="4" placeholder="Type your announcement here... e.g., Today's special: Chole Bhature!" class="w-full text-base p-3 rounded-md border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent" required></textarea><div class="flex justify-end mt-4"><button type="submit" class="px-6 py-3 text-base font-semibold text-white bg-indigo-600 rounded-md hover:bg-indigo-700">Post Announcement</button></div></form></div>
+                          <h3 class="text-2xl font-bold pt-4 border-t">Recent Broadcasts</h3>
+                          <template x-for="post in broadcasts" :key="post._id">
+                              <div class="bg-white rounded-xl shadow-md border border-slate-200 p-6 flex items-start gap-5">
+                                  <div class="flex-shrink-0"><div class="h-12 w-12 rounded-full bg-indigo-500 text-white flex items-center justify-center text-xl font-semibold"><span x-text="post.senderName.charAt(0)"></span></div></div>
+                                  <div class="flex-grow">
+                                      <div class="flex items-baseline justify-between"><div><p class="font-bold text-lg" x-text="post.senderName"></p><p class="text-sm text-slate-500" x-text="post.senderRole"></p></div><p class="text-sm text-slate-400" x-text="formatDate(post.createdAt)"></p></div>
+                                      <p class="mt-3 text-base text-slate-700" x-text="post.message"></p>
+                                  </div>
+                              </div>
+                          </template>
+                          <div x-show="broadcasts.length === 0" class="text-center py-12 text-slate-500"><p class="font-semibold text-lg">No Broadcasts Yet</p></div>
+                      </div>
+                </div>
+
+                 <div x-show="!isLoading && currentPage === 'help'" x-cloak class="p-8 space-y-8">
+                      <div><h1 class="text-4xl font-bold">Help & Support Center</h1><p class="text-lg text-slate-600 mt-1">Answers to common questions about the canteen system.</p></div>
+                      <div class="pt-8">
+                          <h2 class="text-3xl font-bold mb-6">Frequently Asked Questions</h2>
+                          <div x-data="{ open: null }" class="space-y-4 max-w-4xl mx-auto">
+                              <div class="bg-white rounded-lg shadow-sm border border-slate-200">
+                                  <button @click="open = open === 1 ? null : 1" class="w-full text-left p-6 flex justify-between items-center"><span class="text-lg font-semibold">How do I update an order's status?</span><svg :class="{'rotate-180': open === 1}" class="h-6 w-6 transform transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg></button>
+                                  <div x-show="open === 1" x-transition class="p-6 pt-0 text-slate-600"><p>Navigate to the 'Live Requests' page for food or beverages. Find the order and click the 'Update' button. A modal will appear where you can select the new status and submit the change.</p></div>
+                              </div>
+                              <div class="bg-white rounded-lg shadow-sm border border-slate-200">
+                                  <button @click="open = open === 2 ? null : 2" class="w-full text-left p-6 flex justify-between items-center"><span class="text-lg font-semibold">How does billing work?</span><svg :class="{'rotate-180': open === 2}" class="h-6 w-6 transform transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg></button>
+                                  <div x-show="open === 2" x-transition class="p-6 pt-0 text-slate-600"><p>Go to the 'Billing' page under the 'Pre-Order Food' section. This page lists all orders ready to be finalized. Click 'Generate Bill' to see a printable invoice and to mark the order as 'Delivered' in the system.</p></div>
+                              </div>
+                              <div class="bg-white rounded-lg shadow-sm border border-slate-200">
+                                  <button @click="open = open === 3 ? null : 3" class="w-full text-left p-6 flex justify-between items-center"><span class="text-lg font-semibold">What do the different order statuses mean?</span><svg :class="{'rotate-180': open === 3}" class="h-6 w-6 transform transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg></button>
+                                  <div x-show="open === 3" x-transition class="p-6 pt-0 text-slate-600"><ul class="list-disc list-inside space-y-2"><li><strong>Pending:</strong> The order has been placed by the employee and is waiting for canteen staff to see it.</li><li><strong>Preparing:</strong> The canteen has acknowledged the order and is preparing the food.</li><li><strong>Ready for Pickup:</strong> The food order is prepared and ready for the employee to collect.</li><li><strong>Delivered:</strong> The order has been completed and delivered/picked up.</li><li><strong>Cancelled:</strong> The order has been cancelled.</li></ul></div>
+                              </div>
+                          </div>
+                      </div>
+                </div>
+
+            </main>
+        </div>
+
+        <div x-show="isUpdateStatusModalOpen" @keydown.escape.window="closeUpdateStatusModal()" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" x-cloak><div @click.away="closeUpdateStatusModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4" x-show="isUpdateStatusModalOpen" x-transition.scale><form @submit.prevent="submitStatusUpdate()"><div class="p-8"><h2 class="text-xl font-bold mb-2">Update Order Status</h2><p class="text-sm text-slate-500 mb-4">Order ID: <span x-text="orderToUpdate._id"></span></p><label for="statusSelect" class="block text-sm font-medium">New Status</label>
+            <select id="statusSelect" x-model="newStatus" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm">
+                <template x-if="orderToUpdate.type === 'food'">
+                    <optgroup label="Food Status">
+                        <option>Pending</option><option>Preparing</option><option>Ready for Pickup</option><option>Delivered</option><option>Cancelled</option>
+                    </optgroup>
+                </template>
+                <template x-if="orderToUpdate.type === 'beverage'">
+                    <optgroup label="Beverage Status">
+                        <option>Pending</option><option>Delivered</option><option>Cancelled</option>
+                    </optgroup>
+                </template>
+            </select>
+        </div><div class="px-6 py-4 bg-slate-50 rounded-b-2xl flex justify-end gap-3"><button @click="closeUpdateStatusModal()" type="button" class="px-5 py-2.5 text-base font-medium rounded-md shadow-sm">Cancel</button><button type="submit" class="px-5 py-2.5 text-base font-medium text-white bg-indigo-600 rounded-md">Update Status</button></div></form></div></div>
+        
+        <div x-show="isBillingModalOpen" @keydown.escape.window="closeBillingModal()" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 no-print" x-cloak>
+            <div @click.away="closeBillingModal()" class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4" x-show="isBillingModalOpen" x-transition.scale>
+                <div id="bill-modal" class="p-8">
+                    <div class="text-center mb-6">
+                        <img src="/logo.png" alt="JC NEXUS Hub Logo" class="h-16 w-auto mx-auto">
+                        <h2 class="text-2xl font-bold mt-2">JC NEXUS HUB - Canteen</h2>
+                        <p class="text-sm text-slate-500">Tax Invoice</p>
+                    </div>
+                    <div x-show="orderToBill">
+                        <div class="flex justify-between border-b pb-4 mb-4 text-sm">
+                            <div>
+                                <p class="font-bold">Billed To:</p>
+                                <p x-text="orderToBill.requesterName"></p>
+                                <p x-text="'ID: ' + orderToBill.employeeId"></p>
+                            </div>
+                            <div>
+                                <p><span class="font-bold">Bill No:</span> <span x-text="orderToBill._id.slice(-6).toUpperCase()"></span></p>
+                                <p><span class="font-bold">Date:</span> <span x-text="new Date().toLocaleDateString('en-IN')"></span></p>
+                                <p><span class="font-bold">Paid Via:</span> <span x-text="orderToBill.paymentMethod"></span></p>
+                            </div>
+                        </div>
+                        <table class="w-full text-left text-sm mb-4">
+                            <thead>
+                                <tr class="border-b"><th class="py-2">Item</th><th class="text-center">Qty</th><th class="text-right">Price</th><th class="text-right">Total</th></tr>
+                            </thead>
+                            <tbody>
+                                <template x-if="orderToBill.type === 'food'">
+                                    <template x-for="item in orderToBill.items">
+                                        <tr>
+                                            <td class="py-2" x-text="item.name"></td>
+                                            <td class="text-center" x-text="item.quantity"></td>
+                                            <td class="text-right" x-text="'₹' + item.price.toFixed(2)"></td>
+                                            <td class="text-right" x-text="'₹' + (item.price * item.quantity).toFixed(2)"></td>
+                                        </tr>
+                                    </template>
+                                </template>
+                            </tbody>
+                        </table>
+                        <div class="border-t pt-4">
+                            <div class="flex justify-end text-lg font-bold">
+                                <span>Grand Total:</span>
+                                <span class="ml-4" x-text="'₹' + orderToBill.totalPrice.toFixed(2)"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-8 text-center text-xs text-slate-500">
+                        <p>Thank you for your order!</p>
+                    </div>
+                </div>
+                <div class="px-8 pb-8 flex gap-4 no-print">
+                    <button @click="printBill()" class="w-full py-2 px-4 rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300">Print Bill</button>
+                    <button x-show="orderToBill && orderToBill.status !== 'Delivered'" @click="confirmAndCompleteBill()" class="w-full py-2 px-4 rounded-lg text-white bg-green-600 hover:bg-green-700">Confirm & Complete Order</button>
+                </div>
+            </div>
+        </div>
+
+        <div x-show="isHelpModalOpen" @keydown.escape.window="closeHelpModal()" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" x-cloak><div @click.away="closeHelpModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4" x-show="isHelpModalOpen" x-transition.scale><div class="p-8"><h2 class="text-2xl font-bold mb-6">Help & Support</h2><div class="space-y-6"><div class="bg-slate-50 p-4 rounded-lg flex items-start gap-4"><i class="fa-solid fa-book-open-reader h-8 w-8 text-indigo-600 flex-shrink-0 mt-1 text-2xl"></i><div><h3 class="font-semibold text-lg">Visit our Help Center</h3><p class="text-slate-600 text-sm">Find answers to frequently asked questions about using the dashboard.</p><button @click="currentPage='help'; closeHelpModal()" class="mt-2 text-sm font-semibold text-indigo-600 hover:underline">Go to Help Center &rarr;</button></div></div><div><h3 class="font-semibold text-lg">Submit a Query or Feedback</h3><form @submit.prevent="alert('Thank you for your feedback!'); closeHelpModal()"><textarea rows="4" placeholder="Have a suggestion or facing an issue with the dashboard? Let us know..." class="mt-2 w-full text-base p-3 rounded-md border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent" required></textarea><div class="flex justify-end mt-4"><button type="submit" class="px-5 py-2.5 text-base font-medium text-white bg-indigo-600 rounded-md shadow-sm hover:bg-indigo-700">Submit Feedback</button></div></form></div></div></div></div></div>
+        
+        <div x-show="isProfileModalOpen" @keydown.escape.window="closeProfileModal()" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" x-cloak>
+            <div @click.away="closeProfileModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-3xl mx-4" x-show="isProfileModalOpen" x-transition.scale>
+                <div class="p-8" x-show="editableUser">
+                    <h2 class="text-2xl font-bold mb-6">My Profile</h2>
+                    <div class="flex flex-col md:flex-row gap-8">
+                        <div class="flex-shrink-0 text-center md:w-1/4">
+                            <img class="h-32 w-32 rounded-full object-cover mx-auto ring-4 ring-indigo-200" :src="profilePicPreviewUrl || (editableUser.pic) || 'https://via.placeholder.com/128'" alt="Profile Picture">
+                            <input type="file" @change="handleProfilePicChange" x-ref="profilePicInput" class="hidden" accept="image/*">
+                            <button @click="$refs.profilePicInput.click()" class="mt-4 text-base font-semibold text-indigo-600 hover:text-indigo-800">Change Picture</button>
+                        </div>
+                        <div class="flex-grow grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-500">Full Name</label>
+                                <input type="text" :value="editableUser.fullName" disabled class="mt-1 w-full bg-slate-100 rounded-md border-slate-300 cursor-not-allowed px-3 py-2">
+                            </div>
+                             <div>
+                                <label class="block text-sm font-medium text-slate-500">Employee ID</label>
+                                <input type="text" :value="editableUser.employeeId" disabled class="mt-1 w-full bg-slate-100 rounded-md border-slate-300 cursor-not-allowed px-3 py-2">
+                            </div>
+                             <div>
+                                <label class="block text-sm font-medium text-slate-500">Email</label>
+                                <input type="email" :value="editableUser.email" disabled class="mt-1 w-full bg-slate-100 rounded-md border-slate-300 cursor-not-allowed px-3 py-2">
+                            </div>
+                             <div>
+                                <label class="block text-sm font-medium text-slate-500">Department</label>
+                                <input type="text" :value="editableUser.department" disabled class="mt-1 w-full bg-slate-100 rounded-md border-slate-300 cursor-not-allowed px-3 py-2">
+                            </div>
+                             <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-slate-500">Role</label>
+                                <input type="text" :value="editableUser.role" disabled class="mt-1 w-full bg-slate-100 rounded-md border-slate-300 cursor-not-allowed px-3 py-2">
+                            </div>
+                            <div class="md:col-span-2">
+                                <label for="phone" class="block text-sm font-medium">Phone Number</label>
+                                <input id="phone" type="tel" x-model="editableUser.phone" class="mt-1 w-full rounded-md border-slate-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+                            <div class="md:col-span-2">
+                                <label for="address" class="block text-sm font-medium">Address</label>
+                                <textarea id="address" rows="2" x-model="editableUser.address" class="mt-1 w-full rounded-md border-slate-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-8 pt-5 border-t flex justify-end gap-3">
+                        <button @click="closeProfileModal()" type="button" class="px-5 py-2.5 text-base font-medium bg-white border border-slate-300 rounded-md hover:bg-slate-50">Cancel</button>
+                        <button @click="saveProfileChanges()" type="button" class="px-5 py-2.5 text-base font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700">Save Changes</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div x-show="isChatModalOpen" @keydown.escape.window="closeChatModal()" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" x-cloak>
+            <div @click.away="closeChatModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 flex flex-col" style="height: 70vh;" x-show="isChatModalOpen" x-transition.scale>
+                <div class="p-6 border-b">
+                    <h2 class="text-xl font-bold">Order Conversation</h2>
+                    <p class="text-sm text-slate-500" x-show="orderForChat">With: <span x-text="orderForChat.requesterName"></span> | Order ID: <span x-text="orderForChat._id"></span></p>
+                </div>
+                <div class="p-6 flex-1 overflow-y-auto space-y-4">
+                    <template x-for="message in chatMessages" :key="message._id">
+                        <div class="flex" :class="message.senderRole === 'Canteen' ? 'justify-start' : 'justify-end'">
+                            <div class="p-3 max-w-xs md:max-w-md" :class="message.senderRole === 'Canteen' ? 'chat-bubble-canteen' : 'chat-bubble-user'">
+                                <p class="text-sm" x-text="message.text"></p>
+                                <p class="text-xs mt-1 text-right" :class="message.senderRole === 'Canteen' ? 'text-slate-400' : 'text-indigo-200'" x-text="formatTime(message.createdAt)"></p>
+                            </div>
+                        </div>
+                    </template>
+                     <div x-show="chatMessages.length === 0" class="text-center text-slate-400 pt-10">
+                        <p>No messages for this order yet.</p>
+                    </div>
+                </div>
+                <div class="p-4 bg-slate-50 border-t">
+                    <form @submit.prevent="sendChatMessage()" class="flex items-center gap-3">
+                        <input type="text" x-model="newChatMessage" placeholder="Type your message..." class="w-full px-4 py-2 text-base bg-white border border-slate-300 rounded-full focus:ring-2 focus:ring-indigo-500 focus:border-transparent" required>
+                        <button type="submit" class="flex-shrink-0 h-10 w-10 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 flex items-center justify-center">
+                            <i class="fa-solid fa-paper-plane"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div x-show="isUserOrdersModalOpen" @keydown.escape.window="closeUserOrdersModal()" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" x-cloak>
+            <div @click.away="closeUserOrdersModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-4xl mx-4 flex flex-col" style="height: 80vh;" x-show="isUserOrdersModalOpen" x-transition.scale>
+                <div class="p-6 border-b">
+                    <h2 class="text-xl font-bold">Food Order History For <span x-text="selectedUserForHistory ? selectedUserForHistory.fullName : ''"></span></h2>
+                    <p class="text-sm text-slate-500" x-show="selectedUserForHistory">Employee ID: <span x-text="selectedUserForHistory.employeeId"></span></p>
+                </div>
+                <div class="p-6 flex-1 overflow-y-auto">
+                    <table class="w-full text-base text-left">
+                        <thead class="text-sm text-slate-700 uppercase bg-slate-100 sticky top-0">
+                            <tr>
+                                <th class="px-6 py-4">Date</th>
+                                <th class="px-6 py-4">Items</th>
+                                <th class="px-6 py-4">Total</th>
+                                <th class="px-6 py-4">Status</th>
+                                <th class="px-6 py-4">Rating</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200">
+                            <template x-for="order in selectedUserOrders" :key="order._id">
+                                <tr class="hover:bg-slate-50">
+                                    <td class="px-6 py-5" x-text="formatDate(order.completedAt || order.createdAt)"></td>
+                                    <td class="px-6 py-5 font-medium" x-text="summarizeItems(order.items)"></td>
+                                    <td class="px-6 py-5 font-bold" x-text="'₹' + order.totalPrice.toFixed(2)"></td>
+                                    <td class="px-6 py-5"><span class="status-badge" :class="getStatusClass(order.status)" x-text="order.status"></span></td>
+                                    <td class="px-6 py-5" x-html="displayRating(order.rating)"></td>
+                                </tr>
+                            </template>
+                             <tr x-show="selectedUserOrders.length === 0">
+                                <td colspan="5" class="text-center py-12 text-slate-500">
+                                    <p class="font-semibold text-lg">No orders found for this user.</p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="p-4 bg-slate-50 border-t flex justify-end">
+                    <button @click="closeUserOrdersModal()" type="button" class="px-5 py-2.5 text-base font-medium bg-white border border-slate-300 rounded-md hover:bg-slate-50">Close</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    
+    <script>
+    const socket = io();
+
+    function canteenDashboardApp() {
+        return {
+            sidebarOpen: true,
+            currentPage: 'dashboard',
+            isLoading: true,
+            currentUser: null,
+            allFoodOrders: [],
+            allBeverageOrders: [],
+            employeeBills: [],
+            stats: {},
+            broadcasts: [],
+            newBroadcastMessage: '',
+            
+            notifications: [],
+            unreadNotificationsCount: 0,
+            isHelpModalOpen: false,
+            
+            isProfileModalOpen: false,
+            editableUser: null,
+            profilePicPreviewUrl: null,
+
+            departmentFilter: 'all',
+            searchQuery: '',
+
+            isUpdateStatusModalOpen: false,
+            orderToUpdate: {},
+            newStatus: '',
+
+            isBillingModalOpen: false,
+            orderToBill: null,
+
+            isChatModalOpen: false,
+            orderForChat: null,
+            chatMessages: [],
+            newChatMessage: '',
+
+            // NEW: State for the user's specific order history modal
+            isUserOrdersModalOpen: false,
+            selectedUserForHistory: null,
+            selectedUserOrders: [],
+
+            menuItems: [
+                { name: 'Thali & Combos', icon: '🥗', items: ['Executive Veg Thali', 'Paneer Butter Masala Combo (with 2 Naan/Rice)', 'Dal Makhani Combo (with 2 Laccha Paratha)', 'Kadai Paneer Combo (with 2 Tandoori Roti)', 'Rajma Chawal Bowl', 'Chole Bhature (2 pcs)'] },
+                { name: 'Chinese Specials', icon: '🍜', items: ['Veg Hakka Noodles', 'Veg Manchurian with Fried Rice', 'Chilli Paneer Gravy with Fried Rice', 'Veg Spring Roll (6 pcs)'] },
+                { name: 'Pizza & Continental', icon: '🍕', items: ['Classic Veg Burger', 'Paneer Tikka Sandwich', 'Margherita Pizza (8")', 'Veggie Delight Pizza (8")', 'White Sauce Pasta (Veg)', 'Red Sauce Pasta (Veg)'] },
+                { name: 'All-Day Snacks', icon: '🌮', items: ['Pav Bhaji', 'Masala Dosa', 'Idli Sambar (2 pcs)', 'Samosa Chaat', 'Aloo Tikki Chaat', 'Vada Pav (2 pcs)', 'French Fries', 'Bread Pakoda (2 pcs)'] },
+                { name: 'Beverages', icon: '🥤', items: ['Coffee', 'Black Coffee', 'Masala Tea', 'Green Tea', 'Hot Chocolate', 'Coca-Cola', 'Diet Coke', 'Sprite', 'Cold Coffee', 'Iced Tea', 'Lemon Water', 'Normal Water', 'Hot Water', 'Orange Juice', 'Mango Juice', 'Apple Juice', 'Carrot Juice', 'Mix-fruit Juice', 'Chocolate Milkshake', 'Smoothie'] }
+            ],
+            
+            get departments() {
+                const allDepts = [...this.allFoodOrders, ...this.allBeverageOrders, ...this.employeeBills].map(o => o.department);
+                return ['all', ...new Set(allDepts.filter(d => d))];
+            },
+            get filteredAllPending() {
+                const pendingFood = this.allFoodOrders.filter(o => o.status === 'Pending' || o.status === 'Preparing');
+                const pendingBevs = this.allBeverageOrders.filter(o => o.status === 'Pending');
+                return [...pendingFood, ...pendingBevs].sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+            },
+            
+            applyFilters(orders, types = ['name', 'id', 'items']) {
+                let filtered = orders;
+
+                if (this.departmentFilter !== 'all') {
+                    filtered = filtered.filter(o => o.department === this.departmentFilter);
+                }
+
+                if (this.searchQuery.trim()) {
+                    const query = this.searchQuery.toLowerCase();
+                    filtered = filtered.filter(o => {
+                        const nameMatch = types.includes('name') && o.requesterName.toLowerCase().includes(query);
+                        const idMatch = types.includes('id') && o.employeeId.toLowerCase().includes(query);
+                        const itemMatch = types.includes('items') && (o.items?.some(item => item.name.toLowerCase().includes(query)) || (o.beverage && o.beverage.toLowerCase().includes(query)));
+                        return nameMatch || idMatch || itemMatch;
+                    });
+                }
+                return filtered;
+            },
+
+            get filteredActiveBeverageOrders() {
+                const active = this.allBeverageOrders.filter(o => o.status === 'Pending');
+                return this.applyFilters(active, ['name', 'id', 'items']);
+            },
+            get filteredBeverageHistory() {
+                const history = this.allBeverageOrders.filter(o => o.status === 'Delivered' || o.status === 'Cancelled');
+                return this.applyFilters(history, ['name', 'id', 'items']).sort((a,b) => new Date(b.completedAt) - new Date(a.completedAt));
+            },
+            get beverageTodayStats() {
+                const todayStart = new Date();
+                todayStart.setHours(0, 0, 0, 0);
+                const todaysOrders = this.allBeverageOrders.filter(o => new Date(o.createdAt) >= todayStart);
+                const summary = todaysOrders.reduce((acc, order) => {
+                    acc[order.beverage] = (acc[order.beverage] || 0) + 1;
+                    return acc;
+                }, {});
+                return { total: todaysOrders.length, summary: Object.entries(summary).sort((a,b) => b[1] - a[1]) }
+            },
+            get filteredActiveFoodOrders() {
+                 const active = this.allFoodOrders.filter(o => ['Pending', 'Preparing', 'Ready for Pickup'].includes(o.status));
+                 return this.applyFilters(active, ['name', 'id', 'items']);
+            },
+            get billableFoodOrders() {
+                return this.allFoodOrders.filter(o => ['Pending', 'Preparing', 'Ready for Pickup'].includes(o.status));
+            },
+            get filteredFoodHistory() {
+                const history = this.allFoodOrders.filter(o => ['Delivered', 'Cancelled'].includes(o.status));
+                return this.applyFilters(history, ['name', 'id', 'items']).sort((a,b) => new Date(b.completedAt) - new Date(a.completedAt));
+            },
+            get filteredFoodBills() {
+                return this.applyFilters(this.employeeBills, ['name', 'id']);
+            },
+            get foodTimingReport() {
+                const todayStart = new Date();
+                todayStart.setHours(0, 0, 0, 0);
+                const todaysOrders = this.allFoodOrders.filter(o => new Date(o.createdAt) >= todayStart);
+                return todaysOrders.reduce((acc, order) => {
+                    const key = order.timePreference || 'Instant';
+                    acc[key] = (acc[key] || 0) + 1;
+                    return acc;
+                }, {});
+            },
+
+            initApp() { this.fetchData(); this.setupSocketListeners(); },
+
+            async fetchData() {
+                this.isLoading = true;
+                try {
+                    const [userRes, dataRes, billsRes] = await Promise.all([
+                        fetch('/api/user-info'),
+                        fetch('/api/canteen/dashboard-data'),
+                        fetch('/api/admin/user-food-bills')
+                    ]);
+                    if (!userRes.ok || !dataRes.ok || !billsRes.ok) throw new Error('Failed to fetch dashboard data.');
+                    
+                    this.currentUser = await userRes.json();
+                    const data = await dataRes.json();
+                    this.employeeBills = await billsRes.json();
+
+                    this.allFoodOrders = data.foodOrders.map(o => ({...o, type: 'food'})) || [];
+                    this.allBeverageOrders = data.beverageOrders.map(o => ({...o, type: 'beverage'})) || [];
+                    this.stats = data.stats || {};
+                    this.broadcasts = data.broadcasts || [];
+                    
+                } catch (error) { 
+                    console.error("Dashboard Loading Error:", error); 
+                    alert('Could not load dashboard data. Please ensure you are logged in with the correct role.');
+                } finally { 
+                    this.isLoading = false; 
+                }
+            },
+            
+            setupSocketListeners() {
+                const handleNewOrder = (order, type) => {
+                    this.fetchData();
+                    this.notifications.unshift({
+                        id: order._id || Date.now(),
+                        text: `New ${type} order received from <strong>${order.requesterName}</strong>`,
+                        time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute:'2-digit' })
+                    });
+                    this.unreadNotificationsCount++;
+                };
+
+                socket.on('new-food-order', (order) => handleNewOrder(order, 'food'));
+                socket.on('new-order', (order) => handleNewOrder(order, 'beverage'));
+                socket.on('food-order-updated', () => this.fetchData());
+                socket.on('order-updated', () => this.fetchData());
+                socket.on('new-broadcast', () => this.fetchData());
+
+                socket.on('new-chat-message', (message) => {
+                    if (this.isChatModalOpen && this.orderForChat && message.orderId === this.orderForChat._id) {
+                        this.chatMessages.push(message);
+                    }
+                });
+            },
+
+            async sendBroadcast() {
+                if (!this.newBroadcastMessage.trim()) return;
+                try {
+                    const response = await fetch('/api/admin/create-broadcast', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message: this.newBroadcastMessage })
+                    });
+                    if (!response.ok) throw new Error('Failed to post broadcast.');
+                    this.newBroadcastMessage = '';
+                } catch(error) { alert(error.message); }
+            },
+
+            markNotificationsAsRead() { this.unreadNotificationsCount = 0; },
+            openHelpModal() { this.isHelpModalOpen = true; },
+            closeHelpModal() { this.isHelpModalOpen = false; },
+
+            openProfileModal() { if (this.currentUser) { this.editableUser = JSON.parse(JSON.stringify(this.currentUser)); this.profilePicPreviewUrl = null; this.isProfileModalOpen = true; } },
+            closeProfileModal() { this.isProfileModalOpen = false; this.editableUser = null; },
+            handleProfilePicChange(event) {
+                const file = event.target.files[0];
+                if (file) { this.profilePicPreviewUrl = URL.createObjectURL(file); }
+            },
+            async saveProfileChanges() { 
+                try {
+                    const response = await fetch('/api/profile/update', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ address: this.editableUser.address, phone: this.editableUser.phone })
+                    });
+                    if (!response.ok) throw new Error('Failed to update profile.');
+                    this.currentUser = await response.json();
+                    alert('Profile changes saved successfully!');
+                    this.closeProfileModal();
+                } catch(error) { alert(error.message); }
+            },
+
+            openUpdateStatusModal(order) { 
+                this.orderToUpdate = order; 
+                this.newStatus = order.status; 
+                this.isUpdateStatusModalOpen = true; 
+            },
+            closeUpdateStatusModal() { this.isUpdateStatusModalOpen = false; this.orderToUpdate = {}; },
+            async submitStatusUpdate() {
+                 if (!this.orderToUpdate._id || !this.newStatus) return;
+                try {
+                    const response = await fetch('/api/canteen/update-status', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            orderId: this.orderToUpdate._id,
+                            status: this.newStatus,
+                            orderType: this.orderToUpdate.type
+                        })
+                    });
+                    if (!response.ok) throw new Error('Failed to update status.');
+
+                    if (this.orderToUpdate.type === 'food' && this.newStatus === 'Ready for Pickup') {
+                        socket.emit('notify-employee-ready', { 
+                            orderId: this.orderToUpdate._id, 
+                            requesterId: this.orderToUpdate.requesterId,
+                            message: `Your food order (${this.summarizeItems(this.orderToUpdate.items)}) is ready for pickup!`
+                        });
+                    }
+                    this.closeUpdateStatusModal();
+                } catch(error) { 
+                    alert('Error updating status: ' + error.message); 
+                }
+            },
+            openBillingModal(order) {
+                this.orderToBill = order;
+                this.isBillingModalOpen = true;
+            },
+            closeBillingModal() {
+                this.isBillingModalOpen = false;
+                this.orderToBill = null;
+            },
+            async confirmAndCompleteBill() {
+                if (!this.orderToBill) return;
+                try {
+                    const response = await fetch('/api/canteen/update-status', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            orderId: this.orderToBill._id,
+                            status: 'Delivered',
+                            orderType: this.orderToBill.type
+                        })
+                    });
+                    if (!response.ok) throw new Error('Failed to complete the order.');
+                    alert('Order completed successfully!');
+                    this.closeBillingModal();
+                } catch(error) { alert(error.message); }
+            },
+            printBill() { window.print(); },
+
+            async openChatModal(order) {
+                this.orderForChat = order;
+                this.isChatModalOpen = true;
+                this.chatMessages = [];
+                try {
+                    const response = await fetch(`/api/canteen/orders/${order._id}/chat`);
+                    if (!response.ok) throw new Error('Could not load chat history.');
+                    this.chatMessages = await response.json();
+                } catch (error) {
+                    console.error("Chat Error:", error);
+                }
+            },
+            closeChatModal() {
+                this.isChatModalOpen = false;
+                this.orderForChat = null;
+                this.chatMessages = [];
+                this.newChatMessage = '';
+            },
+            async sendChatMessage() {
+                if (!this.newChatMessage.trim()) return;
+                try {
+                    const response = await fetch(`/api/canteen/orders/${this.orderForChat._id}/chat`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text: this.newChatMessage })
+                    });
+                    if (!response.ok) throw new Error('Message could not be sent.');
+                    this.newChatMessage = '';
+                } catch (error) {
+                    console.error("Send Chat Error:", error);
+                    alert("Error: Could not send message.");
+                }
+            },
+
+            // --- NEW FUNCTIONS ---
+
+            // NEW: Opens the modal showing a specific user's complete food order history
+            openUserOrdersModal(bill) {
+                this.selectedUserForHistory = bill;
+                this.selectedUserOrders = this.allFoodOrders
+                    .filter(order => order.employeeId === bill.employeeId)
+                    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                this.isUserOrdersModalOpen = true;
+            },
+
+            // NEW: Closes the user's order history modal
+            closeUserOrdersModal() {
+                this.isUserOrdersModalOpen = false;
+                this.selectedUserForHistory = null;
+                this.selectedUserOrders = [];
+            },
+
+            // NEW: Helper function to generate and display star ratings
+            displayRating(rating) {
+                if (!rating || rating === 0) {
+                    return '<span class="text-slate-400 text-xs italic">Not Rated</span>';
+                }
+                const fullStar = '<i class="fa-solid fa-star text-amber-400"></i>';
+                const emptyStar = '<i class="fa-regular fa-star text-amber-400"></i>';
+                let stars = '';
+                for (let i = 1; i <= 5; i++) {
+                    stars += i <= rating ? fullStar : emptyStar;
+                }
+                return stars;
+            },
+
+            // NEW: Function to download filtered history as a CSV file
+            downloadHistoryCSV(type) {
+                let dataToExport, headers, filename;
+
+                if (type === 'beverage') {
+                    dataToExport = this.filteredBeverageHistory;
+                    headers = ['Completed At', 'Employee Name', 'Employee ID', 'Beverage', 'Location', 'Status', 'Rating'];
+                    filename = 'beverage-history.csv';
+                } else if (type === 'food') {
+                    dataToExport = this.filteredFoodHistory;
+                    headers = ['Completed At', 'Employee Name', 'Employee ID', 'Items', 'Dietary Comments', 'Custom Request', 'Total Price', 'Status', 'Rating'];
+                    filename = 'food-history.csv';
+                } else {
+                    return;
+                }
+
+                if (!dataToExport || dataToExport.length === 0) {
+                    alert('No data available to download.');
+                    return;
+                }
+
+                const toCSV = (data) => {
+                    const headerRow = headers.join(',');
+                    const dataRows = data.map(order => {
+                        const sanitized = (field) => `"${String(field || '').replace(/"/g, '""')}"`;
+                        let row;
+                        if (type === 'beverage') {
+                            row = [
+                                sanitized(order.completedAt ? new Date(order.completedAt).toLocaleString('en-IN') : 'N/A'),
+                                sanitized(order.requesterName),
+                                sanitized(order.employeeId),
+                                sanitized(order.beverage),
+                                sanitized(`${order.floorNumber}, Desk ${order.deskNumber}`),
+                                sanitized(order.status),
+                                sanitized(order.rating || 'N/A')
+                            ];
+                        } else { // food
+                            row = [
+                                sanitized(order.completedAt ? new Date(order.completedAt).toLocaleString('en-IN') : 'N/A'),
+                                sanitized(order.requesterName),
+                                sanitized(order.employeeId),
+                                sanitized(this.summarizeItems(order.items, 100)), // Longer summary for CSV
+                                sanitized(order.instructions),
+                                sanitized(order.customFoodRequest),
+                                order.totalPrice.toFixed(2),
+                                sanitized(order.status),
+                                sanitized(order.rating || 'N/A')
+                            ];
+                        }
+                        return row.join(',');
+                    });
+                    return [headerRow, ...dataRows].join('\n');
+                };
+
+                const csvContent = toCSV(dataToExport);
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', filename);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            },
+            // --- END NEW FUNCTIONS ---
+
+            isActive(page) { return this.currentPage === page ? 'bg-indigo-600 text-white shadow' : 'hover:bg-slate-100'; },
+            formatDate(dateString) {
+                if (!dateString) return '';
+                return new Date(dateString).toLocaleTimeString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true });
+            },
+            formatTime(dateString) {
+                if (!dateString) return '';
+                return new Date(dateString).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+            },
+            summarizeItems(items, maxLength = 35) {
+                if (!items || items.length === 0) return 'N/A';
+                const summary = items.map(i => `${i.name} (x${i.quantity})`).join(', ');
+                return summary.length > maxLength ? summary.substring(0, maxLength) + '...' : summary;
+            },
+            getStatusClass(status) {
+                return 'status-' + (status || 'default').toLowerCase().replace(/ /g, '-');
+            }
+        }
+    }
+
+    function liveClock() {
+        return {
+            time: '', date: '',
+            start() { this.updateTime(); setInterval(() => { this.updateTime(); }, 1000); },
+            updateTime() {
+                const now = new Date();
+                this.time = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+                this.date = now.toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            }
+        }
+    }
+    </script>
+</body>
+</html>

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Create Account - JC Nexus Hub</title>
+    
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+    <style>
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        body {
+            font-family: 'Poppins', sans-serif;
+        }
+    </style>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    animation: {
+                        'fade-in-up': 'fadeInUp 0.8s ease-out forwards',
+                    },
+                }
+            }
+        }
+    </script>
+</head>
+
+<body class="bg-slate-50 antialiased">
+    <div class="flex min-h-screen items-stretch">
+        
+        <div class="hidden lg:flex w-full max-w-2xl items-center justify-center bg-slate-900 p-12 text-white text-center relative overflow-hidden">
+            <div class="absolute -top-20 -left-20 w-72 h-72 bg-indigo-500 rounded-full mix-blend-lighten filter blur-3xl opacity-40 animate-pulse"></div>
+            <div class="absolute -bottom-24 -right-12 w-96 h-96 bg-purple-500 rounded-full mix-blend-lighten filter blur-3xl opacity-30 animate-pulse animation-delay-4000"></div>
+            <div class="absolute inset-0 bg-grid-slate-800/[0.2] [mask-image:linear-gradient(to_bottom,white_40%,transparent_100%)]"></div>
+      
+            <div class="z-10 w-full max-w-md animate-fade-in-up [animation-delay:200ms]">
+                <img src="logo.png" alt="JC Nexus Hub Logo" class="h-32 w-auto mx-auto drop-shadow-lg" />
+                <h1 class="mt-6 text-4xl font-extrabold tracking-wide">JC NEXUS HUB</h1>
+                <p class="mt-4 text-base text-slate-300 leading-relaxed">Integrated solutions for enterprise excellence.</p>
+            </div>
+        </div>
+
+        <div class="w-full flex items-center justify-center p-6 lg:py-8 lg:px-12">
+            <div class="w-full max-w-lg">
+                <div class="bg-white p-8 md:p-10 rounded-2xl shadow-xl shadow-slate-200/60 border border-slate-200/80 animate-fade-in-up [animation-delay:400ms]">
+                    <div class="text-center mb-8">
+                        <h2 class="text-3xl font-bold text-slate-900 tracking-tight">Create Your Account</h2>
+                        <p class="mt-1 text-base text-slate-500">Join the internal services platform.</p>
+                    </div>
+
+                    <form id="registerForm" class="space-y-5">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            <div>
+                                <label for="fullName" class="text-sm font-medium text-slate-700">Full Name</label>
+                                <input id="fullName" name="fullName" type="text" required placeholder="Your Name"
+                                    class="mt-1 block w-full bg-slate-50 px-4 py-2.5 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition" />
+                            </div>
+                            <div>
+                                <label for="employeeId" class="text-sm font-medium text-slate-700">Employee ID</label>
+                                <input id="employeeId" name="employeeId" type="text" required placeholder="e.g., 1007"
+                                    class="mt-1 block w-full bg-slate-50 px-4 py-2.5 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition" />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label for="email" class="text-sm font-medium text-slate-700">Email Address</label>
+                            <input id="email" name="email" type="email" autocomplete="email" required placeholder="you@example.com"
+                                class="mt-1 block w-full bg-slate-50 px-4 py-2.5 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition" />
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            <div>
+                                <label for="department" class="text-sm font-medium text-slate-700">Department</label>
+                                <select id="department" name="department" required class="mt-1 block w-full bg-slate-50 px-3 py-3 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
+                                    <option value="" disabled selected>Select department...</option>
+                                    <option>Production</option><option>Quality</option><option>Maintenance</option><option>R&D</option><option>Design</option><option>Procurement</option><option>Logistics</option><option>Planning</option><option>Inventory</option><option>Sales</option><option>Marketing</option><option>Finance</option><option>Accounts</option><option>HR</option><option>IT</option><option>Legal</option><option>Admin</option><option>Security</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="role" class="text-sm font-medium text-slate-700">Role</label>
+                                <select id="role" name="role" required class="mt-1 block w-full bg-slate-50 px-3 py-3 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
+                                    <option value="" disabled selected>Select role...</option>
+                                    <option>Employee</option><option>Admin</option><option>IT</option><option>Cleaning</option><option>Canteen</option><option>Store</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label for="password" class="text-sm font-medium text-slate-700">Password</label>
+                            <input id="password" name="password" type="password" autocomplete="new-password" required placeholder="••••••••"
+                                class="mt-1 block w-full bg-slate-50 px-4 py-2.5 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition" />
+                        </div>
+                        
+                        <div id="message" aria-live="polite" class="text-center text-sm font-medium h-5"></div>
+
+                        <div class="pt-2">
+                            <button type="submit" id="submitButton" class="group relative w-full flex justify-center items-center py-3 px-4 border border-transparent text-base font-semibold rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-300 ease-in-out shadow-lg hover:shadow-indigo-500/40 transform hover:-translate-y-0.5 disabled:opacity-75 disabled:cursor-not-allowed">
+                                <span class="button-text">Create Account</span>
+                                <span class="button-spinner absolute hidden"><svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></span>
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <div class="mt-6 text-center text-sm">
+                        <p class="text-slate-600">
+                            Already have an account?
+                            <a href="/" class="font-medium text-indigo-600 hover:text-indigo-500 hover:underline">Sign In</a>
+                        </p>
+                    </div>
+                </div>
+                 <div class="mt-8 text-center animate-fade-in-up [animation-delay:600ms]">
+                    <p class="text-xs text-slate-500">&copy; JC Eletronica pvt ltd. | All rights reserved.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const registerForm = document.getElementById('registerForm');
+            const messageDiv = document.getElementById('message');
+            const submitButton = document.getElementById('submitButton');
+            const buttonText = submitButton.querySelector('.button-text');
+            const buttonSpinner = submitButton.querySelector('.button-spinner');
+
+            function displayMessage(text, type = 'error') {
+                messageDiv.textContent = text;
+                messageDiv.className = `text-center text-sm font-medium h-5 ${type === 'success' ? 'text-green-600' : 'text-red-600'}`;
+            }
+
+            registerForm.addEventListener('submit', async function(event) {
+                event.preventDefault();
+                displayMessage('');
+                
+                const data = Object.fromEntries(new FormData(registerForm).entries());
+
+                submitButton.disabled = true;
+                buttonText.classList.add('opacity-0');
+                buttonSpinner.classList.remove('hidden');
+
+                try {
+                    const response = await fetch('/api/register', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data),
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok && result.success) {
+                        displayMessage('Registration successful! Redirecting...', 'success');
+                        setTimeout(() => {
+                            window.location.href = '/';
+                        }, 2000);
+                    } else {
+                        throw new Error(result.message || 'Registration failed.');
+                    }
+                } catch (error) {
+                    displayMessage(error.message);
+                } finally {
+                    if (!messageDiv.textContent.includes('Redirecting')) {
+                       setTimeout(() => {
+                            submitButton.disabled = false;
+                            buttonText.classList.remove('opacity-0');
+                            buttonSpinner.classList.add('hidden');
+                       }, 300);
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IT Dashboard - JC NEXUS HUB</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
+
+    <style>
+        body { font-family: 'Poppins', sans-serif; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #a5b4fc; border-radius: 10px; }
+        .sidebar-collapsed .nav-text, .sidebar-collapsed .logo-text, .sidebar-collapsed .profile-text, .sidebar-collapsed .nav-divider { display: none; }
+        .sidebar-collapsed .nav-item { justify-content: center; }
+        .sidebar-collapsed .logo-container { justify-content: center; padding-left: 0; padding-right: 0;}
+        [x-cloak] { display: none !important; }
+        .loading-spinner { border-top-color: #4338ca; animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .status-badge { padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.8rem; font-weight: 600; text-transform: capitalize; }
+        .status-pending { background-color: #fef9c3; color: #ca8a04; }
+        .status-in-progress { background-color: #cffafe; color: #0891b2; }
+        .status-resolved { background-color: #dcfce7; color: #16a34a; }
+        .status-cancelled { background-color: #fee2e2; color: #dc2626; }
+        .priority-badge-high { border: 1px solid #dc2626; color: #dc2626; background-color: #fee2e2; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 antialiased">
+
+    <div x-data="itDashboardApp()" x-init="initApp()" class="flex h-screen bg-slate-100">
+        
+        <aside 
+            :class="sidebarOpen ? 'w-72' : 'w-24 sidebar-collapsed'"
+            class="bg-white text-slate-700 flex flex-col transition-all duration-300 ease-in-out shadow-lg print:hidden">
+            
+            <div class="flex items-center h-20 px-6 border-b border-slate-200 logo-container transition-all duration-300">
+                <img src="/logo.png" alt="JC NEXUS Hub Logo" class="h-10 w-auto flex-shrink-0 rounded-full">
+                <span class="ml-4 text-xl font-bold logo-text whitespace-nowrap">JC NEXUS HUB</span>
+            </div>
+
+            <nav class="flex-1 px-5 py-8 space-y-3 overflow-y-auto">
+                <a href="#" @click.prevent="currentPage = 'dashboard'" :class="isActive('dashboard')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                    <i class="fa-solid fa-chart-pie h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                    <span class="ml-4 text-base font-medium nav-text">Dashboard</span>
+                </a>
+                <a href="#" @click.prevent="currentPage = 'priorityQueue'" :class="isActive('priorityQueue')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                    <i class="fa-solid fa-triangle-exclamation h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                    <span class="ml-4 text-base font-medium nav-text">Priority Queue</span>
+                </a>
+                <a href="#" @click.prevent="currentPage = 'allTickets'" :class="isActive('allTickets')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                    <i class="fa-solid fa-desktop h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                    <span class="ml-4 text-base font-medium nav-text">Live Requests</span>
+                </a>
+                <a href="#" @click.prevent="currentPage = 'resolvedArchive'" :class="isActive('resolvedArchive')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                    <i class="fa-solid fa-box-archive h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                    <span class="ml-4 text-base font-medium nav-text">Resolved Archive</span>
+                </a>
+                <div class="pt-4 nav-divider"><hr class="border-t border-slate-200"></div>
+                <a href="#" @click.prevent="currentPage = 'broadcasts'" :class="isActive('broadcasts')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                    <i class="fa-solid fa-bullhorn h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                    <span class="ml-4 text-base font-medium nav-text">Broadcasts</span>
+                </a>
+                <div class="pt-4 nav-divider"><hr class="border-t border-slate-200"></div>
+                <a href="#" @click.prevent="currentPage = 'help'" :class="isActive('help')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                    <i class="fa-solid fa-circle-question h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                    <span class="ml-4 text-base font-medium nav-text">Help Center</span>
+                </a>
+            </nav>
+
+            <div @click="openProfileModal()" class="p-4 border-t border-slate-200 mt-auto cursor-pointer hover:bg-slate-50 transition-colors">
+                <div class="flex items-center" :class="!sidebarOpen && 'justify-center'">
+                    <div class="flex-shrink-0">
+                        <template x-if="currentUser && currentUser.pic"><img :src="currentUser.pic" alt="Profile" class="h-12 w-12 rounded-full object-cover"></template>
+                        <template x-if="!currentUser || !currentUser.pic"><div class="h-12 w-12 rounded-full bg-indigo-500 text-white flex items-center justify-center text-xl font-semibold"><span x-text="currentUser ? currentUser.fullName.charAt(0) : '?'"></span></div></template>
+                    </div>
+                    <div class="ml-4 profile-text">
+                        <p class="text-base font-semibold" x-text="currentUser ? currentUser.fullName : 'Loading...'"></p>
+                        <p class="text-sm text-slate-500" x-text="currentUser ? currentUser.role : '...'"></p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <header class="flex items-center justify-between h-20 px-8 bg-white border-b border-slate-200 print:hidden">
+                 <button @click="sidebarOpen = !sidebarOpen" class="text-slate-500 hover:text-indigo-600 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"><svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg></button>
+                <div class="flex items-center space-x-4">
+                    <div x-data="liveClock()" x-init="start()" class="text-base text-slate-600 hidden md:block">
+                        <span x-text="date"></span>, <span x-text="time" class="font-medium text-slate-800"></span>
+                    </div>
+                    
+                    <div x-data="{ open: false }" class="relative">
+                        <button @click="open = !open; markNotificationsAsRead()" class="relative p-3 text-slate-500 bg-slate-100 rounded-full hover:bg-slate-200 focus:outline-none" title="Notifications">
+                            <span class="sr-only">View notifications</span>
+                            <i class="fa-solid fa-bell text-xl"></i>
+                            <span x-show="unreadNotificationsCount > 0" class="absolute top-1 right-1 h-3 w-3 bg-red-500 rounded-full border-2 border-white"></span>
+                        </button>
+                        <div x-show="open" @click.away="open = false" x-transition class="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border z-50" x-cloak>
+                            <div class="p-4 font-semibold border-b">Notifications</div>
+                            <div class="p-2 max-h-96 overflow-y-auto">
+                                <template x-for="notification in notifications" :key="notification.id">
+                                    <div class="p-3 rounded-lg hover:bg-slate-50 cursor-pointer" @click="currentPage = 'allTickets'; open = false;">
+                                        <p class="text-sm" x-html="notification.text"></p>
+                                        <p class="text-xs text-slate-500 mt-1" x-text="notification.time"></p>
+                                    </div>
+                                </template>
+                                <div x-show="notifications.length === 0" class="text-center p-8 text-slate-500 text-sm">
+                                    <i class="fa-regular fa-circle-check text-5xl text-slate-400"></i>
+                                    <p class="mt-2 font-semibold">You're all caught up!</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button @click="openHelpModal()" class="p-3 text-slate-500 bg-slate-100 rounded-full hover:bg-slate-200 focus:outline-none" title="Help & Support">
+                        <span class="sr-only">Help & Support</span>
+                        <i class="fa-solid fa-question-circle text-xl"></i>
+                    </button>
+                    
+                    <a href="/logout" class="p-3 text-slate-500 bg-slate-100 rounded-full hover:bg-slate-200 hover:text-red-600 focus:outline-none" title="Logout">
+                        <span class="sr-only">Logout</span>
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                    </a>
+                </div>
+            </header>
+            
+            <main class="flex-1 overflow-x-hidden overflow-y-auto bg-slate-100">
+                <div x-show="isLoading" class="flex items-center justify-center h-full"><div class="flex items-center space-x-3"><div class="w-10 h-10 border-4 border-indigo-200 rounded-full loading-spinner"></div><p class="text-lg font-medium">Loading IT Dashboard...</p></div></div>
+
+                <div x-show="!isLoading && currentPage === 'dashboard'" x-cloak x-transition.opacity.duration.300ms class="p-8 space-y-8">
+                    <div><h1 class="text-4xl font-bold">IT Dashboard</h1><p class="text-lg text-slate-600 mt-1" x-show="currentUser">Welcome back, <span x-text="currentUser.fullName ? currentUser.fullName.split(' ')[0] : 'Support Team'"></span>. Here's your real-time overview.</p></div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200 flex items-center justify-between"><div><p class="text-base font-medium text-slate-500">High Priority</p><p class="text-4xl font-bold" x-text="stats.highPriority || 0"></p></div><div class="p-4 rounded-full bg-red-100 text-red-600"><i class="fa-solid fa-triangle-exclamation text-3xl"></i></div></div>
+                        <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200 flex items-center justify-between"><div><p class="text-base font-medium text-slate-500">Pending Tickets</p><p class="text-4xl font-bold" x-text="stats.pending || 0"></p></div><div class="p-4 rounded-full bg-amber-100 text-amber-600"><i class="fa-solid fa-clock text-3xl"></i></div></div>
+                        <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200 flex items-center justify-between"><div><p class="text-base font-medium text-slate-500">In Progress</p><p class="text-4xl font-bold" x-text="stats.inProgress || 0"></p></div><div class="p-4 rounded-full bg-sky-100 text-sky-600"><i class="fa-solid fa-spinner text-3xl"></i></div></div>
+                        <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200 flex items-center justify-between"><div><p class="text-base font-medium text-slate-500">Resolved Today</p><p class="text-4xl font-bold" x-text="stats.resolvedToday || 0"></p></div><div class="p-4 rounded-full bg-green-100 text-green-600"><i class="fa-solid fa-check-double text-3xl"></i></div></div>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+                        <div class="lg:col-span-3 bg-white p-8 rounded-xl shadow-md border border-slate-200">
+                            <h3 class="text-2xl font-bold text-slate-900 mb-4">IT Command Center</h3>
+                             <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div class="flex items-start gap-4"><div class="flex-shrink-0 p-3 bg-indigo-100 rounded-lg text-indigo-600"><i class="fa-solid fa-ticket h-6 w-6"></i></div><div><h4 class="font-semibold">Live Ticket Monitoring</h4><p class="text-sm text-slate-500">Track incoming requests in real-time on the 'Live Requests' and 'Priority Queue' pages.</p></div></div>
+                                <div class="flex items-start gap-4"><div class="flex-shrink-0 p-3 bg-indigo-100 rounded-lg text-indigo-600"><i class="fa-solid fa-chart-line h-6 w-6"></i></div><div><h4 class="font-semibold">Performance Analytics</h4><p class="text-sm text-slate-500">The cards above offer an instant overview of key metrics like pending tickets and resolution rates.</p></div></div>
+                                <div class="flex items-start gap-4"><div class="flex-shrink-0 p-3 bg-indigo-100 rounded-lg text-indigo-600"><i class="fa-solid fa-bullhorn h-6 w-6"></i></div><div><h4 class="font-semibold">Communication Hub</h4><p class="text-sm text-slate-500">Use the 'Broadcasts' page to send important announcements to all employees.</p></div></div>
+                                <div class="flex items-start gap-4"><div class="flex-shrink-0 p-3 bg-indigo-100 rounded-lg text-indigo-600"><i class="fa-solid fa-box-archive h-6 w-6"></i></div><div><h4 class="font-semibold">Historical Archive</h4><p class="text-sm text-slate-500">Review past tickets and resolutions in the 'Resolved Archive' to identify trends.</p></div></div>
+                            </div>
+                        </div>
+                        <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-md border border-slate-200">
+                            <h3 class="text-lg font-semibold mb-4">Recent Activity</h3>
+                            <div class="space-y-4">
+                                <template x-for="ticket in recentActivity" :key="ticket._id">
+                                    <div class="flex items-start gap-3">
+                                        <div class="flex-shrink-0 pt-1"><span class="h-6 w-6 rounded-full flex items-center justify-center text-xs" :class="getActivityIcon(ticket).bg"><i :class="getActivityIcon(ticket).icon"></i></span></div>
+                                        <div>
+                                            <p class="text-sm font-medium leading-tight"><span x-text="ticket.requesterName"></span></p>
+                                            <p class="text-sm text-slate-500" x-text="ticket.mainIssue"></p>
+                                        </div>
+                                    </div>
+                                </template>
+                                <div x-show="recentActivity.length === 0" class="text-center py-4 text-sm text-slate-500">No recent activity.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div x-show="!isLoading && currentPage === 'priorityQueue'" x-cloak x-transition.opacity.duration.300ms class="p-8 space-y-6">
+                    <div class="flex flex-wrap justify-between items-center gap-4">
+                        <div><h1 class="text-4xl font-bold">Priority Queue</h1><p class="text-lg text-slate-600 mt-1">All unresolved tickets marked as high priority.</p></div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-md border border-slate-200 overflow-x-auto">
+                        <table class="w-full text-base text-left">
+                            <thead class="text-sm text-slate-700 uppercase bg-slate-100"><tr><th scope="col" class="px-6 py-4">Date</th><th scope="col" class="px-6 py-4">Employee</th><th scope="col" class="px-6 py-4">Issue</th><th scope="col" class="px-6 py-4">Description</th><th scope="col" class="px-6 py-4">Status</th><th scope="col" class="px-6 py-4">Actions</th></tr></thead>
+                            <tbody class="divide-y divide-slate-200">
+                                <template x-for="ticket in priorityTickets" :key="ticket._id">
+                                    <tr class="hover:bg-red-50/50 transition-colors duration-200">
+                                        <td class="px-6 py-5" x-text="formatDate(ticket.createdAt, true)"></td>
+                                        <td class="px-6 py-5"><div class="font-medium" x-text="ticket.requesterName"></div><div class="text-sm text-slate-500" x-text="ticket.employeeId"></div></td>
+                                        <td class="px-6 py-5 font-medium" x-text="ticket.mainIssue"></td>
+                                        <td class="px-6 py-5 text-sm text-slate-600" x-text="truncate(ticket.problemDescription, 40)" :title="ticket.problemDescription"></td>
+                                        <td class="px-6 py-5"><span class="status-badge" :class="getStatusClass(ticket.status)" x-text="ticket.status"></span></td>
+                                        <td class="px-6 py-5 whitespace-nowrap space-x-2">
+                                            <button @click="openResolveModal(ticket)" class="px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700">Resolve</button>
+                                            <button @click="openChatModal(ticket)" class="px-3 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700" title="Chat"><i class="fa-solid fa-comments"></i></button>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <tr x-show="priorityTickets.length === 0"><td colspan="6" class="text-center py-12 text-slate-500"><div class="flex flex-col items-center"><i class="fa-solid fa-check-circle text-6xl text-slate-400"></i><p class="mt-4 font-semibold text-lg">No high priority tickets</p><p class="text-base">The queue is clear!</p></div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div x-show="!isLoading && currentPage === 'allTickets'" x-cloak x-transition.opacity.duration.300ms class="p-8 space-y-6">
+                   <div class="flex flex-wrap justify-between items-center gap-4">
+                        <div><h1 class="text-4xl font-bold">Live Requests</h1><p class="text-lg text-slate-600 mt-1">Monitor, manage, and update all active IT support tickets.</p></div>
+                   </div>
+                    <div class="bg-white p-4 rounded-xl shadow-md border border-slate-200 flex flex-wrap items-center gap-4">
+                        <div class="flex flex-wrap items-center gap-2"><span class="text-base font-semibold mr-2">Filter by status:</span>
+                            <button @click="liveTicketFilter = 'all'" :class="liveTicketFilter === 'all' ? 'bg-indigo-600 text-white' : 'bg-slate-100 hover:bg-slate-200'" class="px-4 py-2 text-base font-medium rounded-md transition-colors">All</button>
+                            <button @click="liveTicketFilter = 'Pending'" :class="liveTicketFilter === 'Pending' ? 'bg-indigo-600 text-white' : 'bg-slate-100 hover:bg-slate-200'" class="px-4 py-2 text-base font-medium rounded-md transition-colors">Pending</button>
+                            <button @click="liveTicketFilter = 'In Progress'" :class="liveTicketFilter === 'In Progress' ? 'bg-indigo-600 text-white' : 'bg-slate-100 hover:bg-slate-200'" class="px-4 py-2 text-base font-medium rounded-md transition-colors">In Progress</button>
+                        </div>
+                        <div class="flex-grow"><input type="search" x-model.debounce.300ms="liveSearchQuery" placeholder="Search by name, ID, location, or issue..." class="w-full text-base px-4 py-2 rounded-md bg-slate-100 border-transparent focus:ring-2 focus:ring-indigo-500 focus:border-transparent"></div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-md border border-slate-200 overflow-x-auto">
+                        <table class="w-full text-base text-left">
+                            <thead class="text-sm text-slate-700 uppercase bg-slate-100"><tr><th scope="col" class="px-6 py-4">Date</th><th scope="col" class="px-6 py-4">Employee</th><th scope="col" class="px-6 py-4">Location</th><th scope="col" class="px-6 py-4">Issue</th><th scope="col" class="px-6 py-4">Description</th><th scope="col" class="px-6 py-4">Priority</th><th scope="col" class="px-6 py-4">Status</th><th scope="col" class="px-6 py-4">Actions</th></tr></thead>
+                            <tbody class="divide-y divide-slate-200">
+                                <template x-for="ticket in filteredLiveTickets" :key="ticket._id">
+                                    <tr class="hover:bg-slate-50 transition-colors duration-200">
+                                        <td class="px-6 py-5" x-text="formatDate(ticket.createdAt, false)"></td>
+                                        <td class="px-6 py-5"><div class="font-medium" x-text="ticket.requesterName"></div><div class="text-sm text-slate-500" x-text="ticket.employeeId"></div></td>
+                                        <td class="px-6 py-5 text-sm"><div class="font-medium" x-text="ticket.floorNumber || 'N/A'"></div><div class="text-slate-500" x-text="ticket.tableNumber || 'N/A'"></div></td>
+                                        <td class="px-6 py-5 font-medium" x-text="ticket.mainIssue"></td>
+                                        <td class="px-6 py-5 text-sm text-slate-600" x-text="truncate(ticket.problemDescription, 40)" :title="ticket.problemDescription"></td>
+                                        <td class="px-6 py-5"><span x-show="ticket.priority === 'High'" class="status-badge priority-badge-high">High</span><span x-show="ticket.priority !== 'High'" x-text="ticket.priority"></span></td>
+                                        <td class="px-6 py-5"><span class="status-badge" :class="getStatusClass(ticket.status)" x-text="ticket.status"></span></td>
+                                        <td class="px-6 py-5 whitespace-nowrap space-x-2">
+                                            <button @click="openResolveModal(ticket)" class="px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700">Resolve</button>
+                                            <button @click="openChatModal(ticket)" class="px-3 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700" title="Chat"><i class="fa-solid fa-comments"></i></button>
+                                            <button x-show="ticket.priority !== 'High'" @click="confirmSetPriority(ticket, 'High')" class="px-3 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700" title="Set High Priority"><i class="fa-solid fa-arrow-up"></i></button>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <tr x-show="filteredLiveTickets.length === 0"><td colspan="8" class="text-center py-12 text-slate-500"><div class="flex flex-col items-center"><i class="fa-solid fa-magnifying-glass text-6xl text-slate-400"></i><p class="mt-4 font-semibold text-lg">No live tickets found</p><p class="text-base">Try adjusting your filters or search query.</p></div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div x-show="!isLoading && currentPage === 'resolvedArchive'" x-cloak x-transition.opacity.duration.300ms class="p-8 space-y-6">
+                    <div class="flex flex-wrap justify-between items-center gap-4">
+                        <div><h1 class="text-4xl font-bold">Resolved Ticket Archive</h1><p class="text-lg text-slate-600 mt-1">Browse and search all completed or cancelled tickets.</p></div>
+                        <button @click="downloadHistoryAsCSV()" class="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-md hover:bg-indigo-700 flex items-center gap-2">
+                            <i class="fa-solid fa-download"></i>
+                            <span>Download CSV</span>
+                        </button>
+                    </div>
+                     <div class="bg-white p-4 rounded-xl shadow-md border border-slate-200 flex items-center">
+                        <div class="flex-grow"><input type="search" x-model.debounce.300ms="resolvedSearchQuery" placeholder="Search archive by name, ID, location, or issue..." class="w-full text-base px-4 py-2 rounded-md bg-slate-100 border-transparent focus:ring-2 focus:ring-indigo-500 focus:border-transparent"></div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-md border border-slate-200 overflow-x-auto">
+                        <table class="w-full text-base text-left">
+                            <thead class="text-sm text-slate-700 uppercase bg-slate-100">
+                                <tr>
+                                    <th scope="col" class="px-6 py-4">Resolved Date</th>
+                                    <th scope="col" class="px-6 py-4">Employee</th>
+                                    <th scope="col" class="px-6 py-4">Issue</th>
+                                    <th scope="col" class="px-6 py-4">Description</th>
+                                    <th scope="col" class="px-6 py-4">Resolved By</th>
+                                    <th scope="col" class="px-6 py-4">Resolution Note</th>
+                                    <th scope="col" class="px-6 py-4">Rating & Feedback</th>
+                                    <th scope="col" class="px-6 py-4">Status</th>
+                                    <th scope="col" class="px-6 py-4">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200">
+                                <template x-for="ticket in filteredResolvedTickets" :key="ticket._id">
+                                    <tr class="hover:bg-slate-50 transition-colors duration-200">
+                                        <td class="px-6 py-5" x-text="formatDate(ticket.resolvedAt, true)"></td>
+                                        <td class="px-6 py-5"><div class="font-medium" x-text="ticket.requesterName"></div><div class="text-sm text-slate-500" x-text="ticket.employeeId"></div></td>
+                                        <td class="px-6 py-5 font-medium" x-text="ticket.mainIssue"></td>
+                                        <td class="px-6 py-5 text-sm text-slate-600" x-text="truncate(ticket.problemDescription, 40)" :title="ticket.problemDescription"></td>
+                                        <td class="px-6 py-5" x-text="ticket.resolvedBy || 'N/A'"></td>
+                                        <td class="px-6 py-5 text-sm text-slate-600" x-text="ticket.resolutionNote || 'N/A'"></td>
+                                        <td class="px-6 py-5">
+                                            <div class="flex items-center" :class="{ 'text-slate-400': !ticket.rating }">
+                                                <span class="text-amber-500" x-html="formatRating(ticket.rating)"></span>
+                                                <span x-show="ticket.review" class="ml-2 cursor-pointer" :title="ticket.review"><i class="fa-solid fa-comment-dots"></i></span>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-5"><span class="status-badge" :class="getStatusClass(ticket.status)" x-text="ticket.status"></span></td>
+                                        <td class="px-6 py-5 whitespace-nowrap">
+                                            <button @click="openChatModal(ticket)" class="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700">View Chat</button>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <tr x-show="filteredResolvedTickets.length === 0"><td colspan="9" class="text-center py-12 text-slate-500"><div class="flex flex-col items-center"><i class="fa-solid fa-box-archive text-6xl text-slate-400"></i><p class="mt-4 font-semibold text-lg">No resolved tickets found</p><p class="text-base">The archive is empty.</p></div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div x-show="!isLoading && currentPage === 'broadcasts'" x-cloak x-transition.opacity.duration.300ms class="p-8 space-y-8">
+                    <div class="flex flex-wrap justify-between items-center gap-4">
+                        <div><h1 class="text-4xl font-bold">Manage Broadcasts</h1><p class="text-lg text-slate-600 mt-1">Create and view IT-specific announcements.</p></div>
+                    </div>
+                    <div class="max-w-4xl mx-auto space-y-8">
+                        <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200"><h3 class="text-xl font-bold mb-4">Create New Broadcast</h3><form @submit.prevent="sendBroadcast"><textarea x-model="newBroadcastMessage" rows="4" placeholder="Type your announcement here..." class="w-full text-base p-3 rounded-md border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent" required></textarea><div class="flex justify-end mt-4"><button type="submit" class="px-6 py-3 text-base font-semibold text-white bg-indigo-600 rounded-md hover:bg-indigo-700">Post Announcement</button></div></form></div>
+                        <h3 class="text-2xl font-bold pt-4 border-t">Recent Broadcasts</h3>
+                        <template x-for="post in broadcasts" :key="post._id">
+                            <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200 flex items-start gap-5">
+                                <div class="flex-shrink-0"><div class="h-12 w-12 rounded-full bg-indigo-500 text-white flex items-center justify-center text-xl font-semibold"><span x-text="post.senderName.charAt(0)"></span></div></div>
+                                <div class="flex-grow">
+                                    <div class="flex items-baseline justify-between"><div><p class="font-bold text-lg" x-text="post.senderName"></p><p class="text-sm text-slate-500" x-text="post.senderRole"></p></div><p class="text-sm text-slate-400" x-text="formatDate(post.createdAt)"></p></div>
+                                    <p class="mt-3 text-base text-slate-700" x-text="post.message"></p>
+                                </div>
+                            </div>
+                        </template>
+                        <div x-show="broadcasts.length === 0" class="text-center py-12 text-slate-500"><p class="font-semibold text-lg">No Broadcasts Yet</p></div>
+                    </div>
+                </div>
+
+                <div x-show="!isLoading && currentPage === 'help'" x-cloak x-transition.opacity.duration.300ms class="p-8 space-y-8">
+                    <div><h1 class="text-4xl font-bold">Help & Support Center</h1><p class="text-lg text-slate-600 mt-1">How can we help you today?</p></div>
+                    <div class="pt-8">
+                        <h2 class="text-3xl font-bold mb-6">Frequently Asked Questions</h2>
+                        <div x-data="{ open: null }" class="space-y-4 max-w-4xl mx-auto">
+                            <div class="bg-white rounded-lg shadow-sm border border-slate-200">
+                                <button @click="open = open === 1 ? null : 1" class="w-full text-left p-6 flex justify-between items-center"><span class="text-lg font-semibold">How do I use the 'Prioritize' button?</span><i class="fa-solid fa-chevron-down transition-transform" :class="open === 1 && 'rotate-180'"></i></button>
+                                <div x-show="open === 1" x-transition class="p-6 pt-0 text-slate-600"><p>On the 'Live Requests' page, click the red 'Prioritize' button on any ticket that is not already high priority. This will move it to the 'Priority Queue' for immediate attention.</p></div>
+                            </div>
+                            <div class="bg-white rounded-lg shadow-sm border border-slate-200">
+                                <button @click="open = open === 2 ? null : 2" class="w-full text-left p-6 flex justify-between items-center"><span class="text-lg font-semibold">What does the 'Broadcast' feature do?</span><i class="fa-solid fa-chevron-down transition-transform" :class="open === 2 && 'rotate-180'"></i></button>
+                                <div x-show="open === 2" x-transition class="p-6 pt-0 text-slate-600"><p>The Broadcasts page allows the IT department to send out important announcements to all employees, such as scheduled maintenance, system outages, or security alerts.</p></div>
+                            </div>
+                            <div class="bg-white rounded-lg shadow-sm border border-slate-200">
+                                <button @click="open = open === 3 ? null : 3" class="w-full text-left p-6 flex justify-between items-center"><span class="text-lg font-semibold">How do notifications work?</span><i class="fa-solid fa-chevron-down transition-transform" :class="open === 3 && 'rotate-180'"></i></button>
+                                <div x-show="open === 3" x-transition class="p-6 pt-0 text-slate-600"><p>You will receive a real-time notification whenever a new ticket is created in the system. The bell icon in the header will show a red dot. Clicking the bell will show the new notifications and mark them as read.</p></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+
+        <div x-show="isUpdateStatusModalOpen" @keydown.escape.window="closeUpdateStatusModal()" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" x-cloak><div @click.away="closeUpdateStatusModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4" x-show="isUpdateStatusModalOpen" x-transition.scale><form @submit.prevent="submitStatusUpdate()"><div class="p-8"><h2 class="text-xl font-bold mb-2">Update Ticket Status</h2><p class="text-base text-slate-600 mb-1">Issue: <strong x-text="ticketToUpdate.mainIssue"></strong></p><p class="text-sm text-slate-500 mb-4">Requester: <span x-text="ticketToUpdate.requesterName"></span></p><div x-show="newStatus === 'Resolved' || newStatus === 'Cancelled'" class="mb-4"><label for="resolutionNote" class="block text-sm font-medium">Resolution / Closing Note</label><textarea id="resolutionNote" x-model="resolutionNote" rows="3" class="mt-1 w-full rounded-md border-slate-300 shadow-sm" placeholder="Enter details of the resolution..." required></textarea></div><label for="statusSelect" class="block text-sm font-medium">New Status</label><select id="statusSelect" x-model="newStatus" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm"><option>Pending</option><option>In Progress</option><option>Resolved</option><option>Cancelled</option></select></div><div class="px-6 py-4 bg-slate-50 rounded-b-2xl flex justify-end gap-3"><button @click="closeUpdateStatusModal()" type="button" class="px-5 py-2.5 text-base font-medium rounded-md shadow-sm">Cancel</button><button type="submit" class="px-5 py-2.5 text-base font-medium text-white bg-indigo-600 rounded-md">Update Status</button></div></form></div></div>
+        <div x-show="isChatModalOpen" @keydown.escape.window="closeChatModal()" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" x-cloak><div @click.away="closeChatModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4" x-show="isChatModalOpen" x-transition.scale><div class="p-6"><div class="flex justify-between items-center pb-3 border-b"><h2 class="text-xl font-bold">Chat History</h2><button @click="closeChatModal()" class="text-slate-400 hover:text-slate-600 text-2xl">&times;</button></div><div class="mt-4 mb-4 h-64 overflow-y-auto p-3 bg-slate-50 rounded-md space-y-4" x-ref="chatHistory"><template x-for="msg in chatHistory"><div class="flex" :class="msg.senderId === currentUser._id ? 'justify-end' : 'justify-start'"><div class="max-w-xs px-4 py-2 rounded-lg" :class="msg.senderId === currentUser._id ? 'bg-indigo-500 text-white' : 'bg-slate-200 text-slate-800'"><p class="text-sm font-bold" x-text="msg.senderName"></p><p class="text-sm" x-text="msg.message"></p></div></div></template></div><form @submit.prevent="sendChatMessage()"><div class="flex gap-2"><input type="text" x-model="chatMessageInput" placeholder="Type your message..." class="flex-grow w-full rounded-md bg-transparent border-slate-300 shadow-sm" autocomplete="off" required><button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md">Send</button></div></form></div></div></div>
+        <div x-show="isProfileModalOpen" @keydown.escape.window="closeProfileModal()" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" x-cloak><div @click.away="closeProfileModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-3xl mx-4" x-show="isProfileModalOpen" x-transition.scale><div class="p-8" x-show="editableUser"><h2 class="text-2xl font-bold mb-6">My Profile</h2><div class="flex flex-col md:flex-row gap-8"><div class="flex-shrink-0 text-center md:w-1/4"><img class="h-32 w-32 rounded-full object-cover mx-auto ring-4 ring-indigo-200" :src="profilePicPreviewUrl || (editableUser.pic) || 'https://placehold.co/128x128/c4b5fd/4338ca?text=' + editableUser.fullName.charAt(0)" alt="Profile Picture"><input type="file" @change="handleProfilePicChange" x-ref="profilePicInput" class="hidden" accept="image/*"><button @click="$refs.profilePicInput.click()" class="mt-4 text-base font-semibold text-indigo-600 hover:text-indigo-800">Change Picture</button></div><div class="flex-grow grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4"><div><label class="block text-sm font-medium text-slate-500">Full Name</label><input type="text" :value="editableUser.fullName" disabled class="mt-1 w-full bg-slate-100 rounded-md border-slate-300 cursor-not-allowed px-3 py-2"></div><div><label class="block text-sm font-medium text-slate-500">Employee ID</label><input type="text" :value="editableUser.employeeId" disabled class="mt-1 w-full bg-slate-100 rounded-md border-slate-300 cursor-not-allowed px-3 py-2"></div><div><label class="block text-sm font-medium text-slate-500">Email</label><input type="email" :value="editableUser.email" disabled class="mt-1 w-full bg-slate-100 rounded-md border-slate-300 cursor-not-allowed px-3 py-2"></div><div><label class="block text-sm font-medium text-slate-500">Department</label><input type="text" :value="editableUser.department" disabled class="mt-1 w-full bg-slate-100 rounded-md border-slate-300 cursor-not-allowed px-3 py-2"></div><div><label class="block text-sm font-medium text-slate-500">Role</label><input type="text" :value="editableUser.role" disabled class="mt-1 w-full bg-slate-100 rounded-md border-slate-300 cursor-not-allowed px-3 py-2"></div><div><label class="block text-sm font-medium text-slate-500">Account Status</label><input type="text" :value="editableUser.status" disabled class="mt-1 w-full bg-slate-100 rounded-md border-slate-300 cursor-not-allowed px-3 py-2"></div><div class="md:col-span-2"><label class="block text-sm font-medium text-slate-500">Joining Date</label><input type="text" :value="formatFullDate(editableUser.joiningDate)" disabled class="mt-1 w-full bg-slate-100 rounded-md border-slate-300 cursor-not-allowed px-3 py-2"></div><div class="md:col-span-2"><label for="phone" class="block text-sm font-medium">Phone Number</label><input id="phone" type="tel" x-model="editableUser.phone" class="mt-1 w-full rounded-md border-slate-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></div><div class="md:col-span-2"><label for="address" class="block text-sm font-medium">Address</label><textarea id="address" rows="2" x-model="editableUser.address" class="mt-1 w-full rounded-md border-slate-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></textarea></div></div></div><div class="mt-8 pt-5 border-t flex justify-end gap-3"><button @click="closeProfileModal()" type="button" class="px-5 py-2.5 text-base font-medium bg-white border border-slate-300 rounded-md hover:bg-slate-50">Cancel</button><button @click="saveProfileChanges()" type="button" class="px-5 py-2.5 text-base font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700">Save Changes</button></div></div></div></div>
+        <div x-show="isHelpModalOpen" @keydown.escape.window="closeHelpModal()" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" x-cloak><div @click.away="closeHelpModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4" x-show="isHelpModalOpen" x-transition.scale><div class="p-8"><h2 class="text-2xl font-bold mb-6">Help & Support</h2><div class="space-y-6"><div class="bg-slate-50 p-4 rounded-lg flex items-start gap-4"><i class="fa-solid fa-book-open-reader text-2xl h-8 w-8 text-indigo-600 flex-shrink-0 mt-1"></i><div><h3 class="font-semibold text-lg">Visit our Help Center</h3><p class="text-slate-600 text-sm">Find answers to frequently asked questions about using the dashboard.</p><button @click="currentPage='help'; closeHelpModal()" class="mt-2 text-sm font-semibold text-indigo-600 hover:underline">Go to Help Center &rarr;</button></div></div><div><h3 class="font-semibold text-lg">Submit a Query or Feedback</h3><form @submit.prevent="alert('Thank you for your feedback!'); closeHelpModal()"><textarea rows="4" placeholder="Have a suggestion or facing an issue with the dashboard? Let us know..." class="mt-2 w-full text-base p-3 rounded-md border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent" required></textarea><div class="flex justify-end mt-4"><button type="submit" class="px-5 py-2.5 text-base font-medium text-white bg-indigo-600 rounded-md shadow-sm hover:bg-indigo-700">Submit Feedback</button></div></form></div></div></div></div></div>
+        <div x-show="isConfirmModalOpen" @keydown.escape.window="closeConfirmModal()" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" x-cloak><div @click.away="closeConfirmModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4" x-show="isConfirmModalOpen" x-transition.scale><div class="p-8"><h2 class="text-xl font-bold mb-4" x-text="confirmModalTitle">Confirm Action</h2><p class="text-slate-600" x-text="confirmModalText">Are you sure you want to proceed?</p></div><div class="px-6 py-4 bg-slate-50 rounded-b-2xl flex justify-end gap-3"><button @click="closeConfirmModal()" type="button" class="px-5 py-2.5 text-base font-medium bg-white border border-slate-300 rounded-md hover:bg-slate-50">Cancel</button><button @click="executeConfirmAction()" type="button" class="px-5 py-2.5 text-base font-medium text-white bg-red-600 rounded-md hover:bg-red-700" x-text="confirmModalButtonText">Confirm</button></div></div></div>
+
+    </div>
+    
+    <script>
+        const socket = io();
+
+        function itDashboardApp() {
+            return {
+                sidebarOpen: true,
+                currentPage: 'dashboard',
+                isLoading: true,
+                currentUser: null, allTickets: [], stats: {}, broadcasts: [], notifications: [], unreadNotificationsCount: 0,
+                liveTicketFilter: 'all', liveSearchQuery: '', resolvedSearchQuery: '',
+                isProfileModalOpen: false, editableUser: null, profilePicPreviewUrl: null,
+                isChatModalOpen: false, chatTicket: {}, chatHistory: [], chatMessageInput: '',
+                isUpdateStatusModalOpen: false, ticketToUpdate: {}, newStatus: '', resolutionNote: '',
+                newBroadcastMessage: '',
+                isHelpModalOpen: false,
+                isConfirmModalOpen: false, confirmModalTitle: '', confirmModalText: '', confirmModalButtonText: '', confirmModalAction: () => {},
+                
+                get filteredLiveTickets() {
+                    let tickets = this.allTickets.filter(t => t.status === 'Pending' || t.status === 'In Progress');
+                    if (this.liveTicketFilter !== 'all') { tickets = tickets.filter(t => t.status === this.liveTicketFilter); }
+                    if (this.liveSearchQuery.trim()) {
+                        const query = this.liveSearchQuery.toLowerCase();
+                        return tickets.filter(t => (t.requesterName && t.requesterName.toLowerCase().includes(query)) || (t.employeeId && t.employeeId.toLowerCase().includes(query)) ||(t.mainIssue && t.mainIssue.toLowerCase().includes(query)) ||(t.floorNumber && t.floorNumber.toLowerCase().includes(query)) || (t.tableNumber && t.tableNumber.toLowerCase().includes(query)));
+                    }
+                    return tickets;
+                },
+                get priorityTickets() { return this.allTickets.filter(t => t.priority === 'High' && (t.status === 'Pending' || t.status === 'In Progress')); },
+                get filteredResolvedTickets() {
+                    let tickets = this.allTickets.filter(t => t.status === 'Resolved' || t.status === 'Cancelled');
+                    if (this.resolvedSearchQuery.trim()) {
+                        const query = this.resolvedSearchQuery.toLowerCase();
+                        tickets = tickets.filter(t => (t.requesterName && t.requesterName.toLowerCase().includes(query)) || (t.employeeId && t.employeeId.toLowerCase().includes(query)) || (t.mainIssue && t.mainIssue.toLowerCase().includes(query)) || (t.floorNumber && t.floorNumber.toLowerCase().includes(query)) || (t.tableNumber && t.tableNumber.toLowerCase().includes(query)));
+                    }
+                    return tickets.sort((a, b) => new Date(b.resolvedAt) - new Date(a.resolvedAt));
+                },
+                get recentActivity() {
+                    const highPriority = this.priorityTickets.slice(0, 3);
+                    const recentResolved = this.allTickets.filter(t => t.status === 'Resolved').sort((a, b) => new Date(b.resolvedAt) - new Date(a.resolvedAt)).slice(0, 3);
+                    const combined = [...highPriority, ...recentResolved];
+                    const unique = Array.from(new Map(combined.map(item => [item['_id'], item])).values());
+                    return unique.sort((a,b) => { const dateA = a.status === 'Resolved' ? new Date(a.resolvedAt) : new Date(a.createdAt); const dateB = b.status === 'Resolved' ? new Date(b.resolvedAt) : new Date(b.createdAt); return dateB - dateA; }).slice(0, 5);
+                },
+                
+                initApp() { this.fetchData(); this.setupSocketListeners(); },
+                async fetchData() {
+                    this.isLoading = true;
+                    try {
+                        const [userRes, dataRes] = await Promise.all([ fetch('/api/user-info'), fetch('/api/it/dashboard-data') ]);
+                        if (!userRes.ok || !dataRes.ok) throw new Error('Failed to fetch IT data.');
+                        this.currentUser = await userRes.json();
+                        const data = await dataRes.json();
+                        this.stats = data.stats || {};
+                        this.allTickets = data.tickets || [];
+                        this.broadcasts = (data.broadcasts || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                    } catch (error) { console.error("IT Dashboard Loading Error:", error); } 
+                    finally { this.isLoading = false; }
+                },
+                setupSocketListeners() {
+                    socket.on('new-ticket', (ticket) => {
+                        this.fetchData();
+                        this.notifications.unshift({ id: ticket._id || Date.now(), text: `New ticket from <strong>${ticket.requesterName}</strong>`, time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute:'2-digit' }) });
+                        this.unreadNotificationsCount++;
+                    });
+                    socket.on('ticket-updated', () => this.fetchData());
+                    socket.on('new-broadcast', (newPost) => this.broadcasts.unshift(newPost));
+                    socket.on('chat-message', (msg) => { if (this.isChatModalOpen && this.chatTicket._id === msg.requestId) { this.chatHistory.push(msg); } });
+                },
+
+                markNotificationsAsRead() { this.unreadNotificationsCount = 0; },
+                confirmSetPriority(ticket, newPriority) { this.confirmModalTitle = 'Set Priority'; this.confirmModalText = `Are you sure you want to set this ticket's priority to ${newPriority}?`; this.confirmModalButtonText = 'Confirm'; this.confirmModalAction = () => { this.setPriority(ticket, newPriority); }; this.openConfirmModal(); },
+                async setPriority(ticket, newPriority) {
+                    try {
+                        const response = await fetch('/api/it/update-priority', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ticketId: ticket._id, priority: newPriority }) });
+                        if (!response.ok) throw new Error('Failed to update priority.');
+                    } catch (error) { alert(error.message); }
+                },
+                openHelpModal() { this.isHelpModalOpen = true; },
+                closeHelpModal() { this.isHelpModalOpen = false; },
+                openConfirmModal() { this.isConfirmModalOpen = true; },
+                closeConfirmModal() { this.isConfirmModalOpen = false; },
+                executeConfirmAction() { this.confirmModalAction(); this.closeConfirmModal(); },
+                openResolveModal(ticket) { this.ticketToUpdate = ticket; this.newStatus = ticket.status; this.resolutionNote = ''; this.isUpdateStatusModalOpen = true; },
+                closeUpdateStatusModal() { this.isUpdateStatusModalOpen = false; this.ticketToUpdate = {}; },
+                async submitStatusUpdate() {
+                    if (!this.ticketToUpdate._id || !this.newStatus) return;
+                    if ((this.newStatus === 'Resolved' || this.newStatus === 'Cancelled') && !this.resolutionNote.trim()) { alert('Please provide a resolution note.'); return; }
+                    try {
+                        const response = await fetch('/api/it/update-status', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ ticketId: this.ticketToUpdate._id, newStatus: this.newStatus, resolutionNote: this.resolutionNote })
+                        });
+                        if (!response.ok) throw new Error('Failed to update status.');
+                        this.closeUpdateStatusModal();
+                    } catch(error) { alert('Error updating status: ' + error.message); }
+                },
+                async openChatModal(ticket) {
+                    this.chatTicket = ticket;
+                    this.isChatModalOpen = true;
+                    this.chatHistory = [];
+                    try {
+                        const response = await fetch(`/api/ticket/details/${ticket._id}`);
+                        if (!response.ok) throw new Error('Could not load chat history.');
+                        const data = await response.json();
+                        this.chatHistory = data.chatHistory || [];
+                        socket.emit('join-chat-room', { type: 'ticket', requestId: ticket._id });
+                    } catch (error) { this.chatHistory = [{ senderName: 'System', message: "Could not load chat history." }]; }
+                },
+                closeChatModal() { this.isChatModalOpen = false; this.chatMessageInput = ''; this.chatHistory = []; this.chatTicket = {}; },
+                sendChatMessage() {
+                    if (!this.chatMessageInput.trim()) return;
+                    socket.emit('send-chat-message', { type: 'ticket', requestId: this.chatTicket._id, message: this.chatMessageInput });
+                    this.chatMessageInput = '';
+                },
+                async sendBroadcast() {
+                    if (!this.newBroadcastMessage.trim()) return;
+                    try {
+                        const response = await fetch('/api/admin/create-broadcast', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ message: this.newBroadcastMessage })
+                        });
+                        if (!response.ok) throw new Error('Failed to post broadcast.');
+                        this.newBroadcastMessage = '';
+                    } catch(error) { alert(error.message); }
+                },
+                openProfileModal() { if (this.currentUser) { this.editableUser = JSON.parse(JSON.stringify(this.currentUser)); this.profilePicPreviewUrl = null; this.isProfileModalOpen = true; } },
+                closeProfileModal() { this.isProfileModalOpen = false; this.editableUser = null; },
+                handleProfilePicChange(event) { const file = event.target.files[0]; if (file) { this.profilePicPreviewUrl = URL.createObjectURL(file); } },
+                async saveProfileChanges() { 
+                    try {
+                        const response = await fetch('/api/profile/update', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ address: this.editableUser.address, phone: this.editableUser.phone, })
+                        });
+                        if (!response.ok) throw new Error('Failed to update profile.');
+                        this.currentUser = await response.json();
+                        alert('Profile changes saved successfully!');
+                        this.closeProfileModal();
+                    } catch(error) { alert(error.message); }
+                },
+                isActive(page) { return this.currentPage === page ? 'bg-indigo-600 text-white shadow' : 'hover:bg-slate-100'; },
+                formatDate(dateString, includeTime = true) {
+                    if (!dateString) return 'N/A';
+                    const options = { day: 'numeric', month: 'short' };
+                    if (new Date(dateString).getFullYear() !== new Date().getFullYear()) { options.year = 'numeric'; }
+                    if (includeTime) { options.hour = '2-digit'; options.minute = '2-digit'; }
+                    return new Date(dateString).toLocaleDateString('en-IN', options);
+                },
+                formatFullDate(dateString) {
+                    if (!dateString) return 'N/A';
+                    return new Date(dateString).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+                },
+                formatRating(rating) { if (!rating || rating === 0) { return 'Not Rated'; } let stars = ''; for (let i = 1; i <= 5; i++) { stars += i <= rating ? '★' : '☆'; } return stars; },
+                getStatusClass(status) { return `status-${(status || '').toLowerCase().replace(/ /g, '-')}`; },
+                getActivityIcon(ticket) {
+                    if (ticket.status === 'Resolved') return { icon: 'fa-solid fa-check', bg: 'bg-green-100 text-green-700' };
+                    if (ticket.priority === 'High') return { icon: 'fa-solid fa-arrow-up', bg: 'bg-red-100 text-red-700' };
+                    return { icon: 'fa-solid fa-plus', bg: 'bg-slate-100 text-slate-700' };
+                },
+                truncate(text, length = 50) {
+                    if (!text) return 'N/A';
+                    if (text.length <= length) { return text; }
+                    return text.substring(0, length) + '...';
+                },
+                downloadHistoryAsCSV() {
+                    const items = this.filteredResolvedTickets;
+                    if (items.length === 0) { alert('No history data to download.'); return; }
+                    const headers = ['Resolved Date', 'Employee', 'Employee ID', 'Issue', 'Description', 'Resolved By', 'Resolution Note', 'Rating (1-5)', 'Review', 'Status'];
+                    const csvRows = [headers.join(',')];
+                    const escapeCSV = (str) => { if (str === null || str === undefined) return ''; const s = String(str).replace(/"/g, '""'); if (s.includes(',')) return `"${s}"`; return s; };
+                    for (const req of items) {
+                        const row = [ escapeCSV(this.formatDate(req.resolvedAt, true)), escapeCSV(req.requesterName), escapeCSV(req.employeeId), escapeCSV(req.mainIssue), escapeCSV(req.problemDescription), escapeCSV(req.resolvedBy), escapeCSV(req.resolutionNote), escapeCSV(req.rating || 'N/A'), escapeCSV(req.review), escapeCSV(req.status) ];
+                        csvRows.push(row.join(','));
+                    }
+                    const csvString = csvRows.join('\n');
+                    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement("a");
+                    const url = URL.createObjectURL(blob);
+                    link.setAttribute("href", url);
+                    link.setAttribute("download", `it_support_history_${new Date().toISOString().split('T')[0]}.csv`);
+                    link.style.visibility = 'hidden';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                }
+            };
+        }
+
+        function liveClock() {
+            return {
+                time: '', date: '',
+                start() { this.updateTime(); setInterval(() => { this.updateTime(); }, 1000); },
+                updateTime() {
+                    const now = new Date();
+                    this.time = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+                    this.date = now.toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' });
+                }
+            };
+        }
+    </script>
+</body>
+</html>

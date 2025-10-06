@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Employee Dashboard - JC NEXUS HUB</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
+
+    <style>
+        body { font-family: 'Poppins', sans-serif; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #a5b4fc; border-radius: 10px; }
+        .sidebar-collapsed .nav-text, .sidebar-collapsed .logo-text, .sidebar-collapsed .profile-text, .sidebar-collapsed .nav-divider, .sidebar-collapsed .submenu-arrow { display: none; }
+        .sidebar-collapsed .nav-item { justify-content: center; }
+        .sidebar-collapsed .logo-container { justify-content: center; padding-left: 0; padding-right: 0; }
+        [x-cloak] { display: none !important; }
+        .loading-spinner { border-top-color: #4338ca; animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .status-badge { padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; text-transform: capitalize; }
+        .status-pending, .status-in-progress, .status-preparing, .status-approved { background-color: #fef9c3; color: #ca8a04; }
+        .status-resolved, .status-completed, .status-delivered, .status-ready-for-pickup { background-color: #dcfce7; color: #16a34a; }
+        .status-cancelled { background-color: #fee2e2; color: #dc2626; }
+        .star-rating-input span { cursor: pointer; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 antialiased">
+    <div x-data="dashboardApp()" x-init="initApp()" class="flex h-screen bg-slate-100">
+        <aside :class="sidebarOpen ? 'w-72' : 'w-24 sidebar-collapsed'" class="bg-white text-slate-700 flex flex-col transition-all duration-300 ease-in-out shadow-lg print:hidden">
+            <div class="flex items-center h-20 px-6 border-b border-slate-200 logo-container transition-all duration-300">
+                <img src="/logo.png" alt="JC NEXUS Hub Logo" class="h-10 w-auto flex-shrink-0 rounded-full" />
+                <span class="ml-4 text-xl font-bold logo-text whitespace-nowrap">JC NEXUS HUB</span>
+            </div>
+            <nav class="flex-1 px-5 py-8 space-y-3 overflow-y-auto">
+                <a href="#" @click.prevent="currentPage = 'dashboard'" :class="isActive('dashboard')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                    <i class="fa-solid fa-chart-pie h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                    <span class="ml-4 text-base font-medium nav-text">Dashboard</span>
+                </a>
+                <a href="#" @click.prevent="currentPage = 'newRequest'" :class="isActive('newRequest')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                    <i class="fa-solid fa-plus-circle h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                    <span class="ml-4 text-base font-medium nav-text">New Request</span>
+                </a>
+                <div class="pt-4 nav-divider"><hr class="border-t border-slate-200" /></div>
+                <a href="#" @click.prevent="currentPage = 'liveRequests'" :class="isActive('liveRequests')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                    <i class="fa-solid fa-satellite-dish h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                    <span class="ml-4 text-base font-medium nav-text">Live Requests</span>
+                </a>
+                <div x-data="{ open: isHistoryPageActive() }">
+                    <button @click="open = !open" class="w-full flex items-center justify-between px-4 py-3 rounded-lg nav-item transition-colors" :class="isHistoryPageActive() ? 'text-indigo-600' : 'hover:bg-slate-100'">
+                        <div class="flex items-center">
+                            <i class="fa-solid fa-history h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                            <span class="ml-4 text-base font-medium nav-text">History</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-down h-5 w-5 submenu-arrow transition-transform" :class="open && 'rotate-180'"></i>
+                    </button>
+                    <div x-show="open" x-transition class="mt-2 space-y-2 nav-text" x-cloak>
+                        <a href="#" @click.prevent="currentPage = 'history'" :class="isActive('history')" class="flex items-center w-full pl-16 pr-4 py-2.5 text-sm rounded-lg transition-colors">Full History</a>
+                        <a href="#" @click.prevent="currentPage = 'itHistory'" :class="isActive('itHistory')" class="flex items-center w-full pl-16 pr-4 py-2.5 text-sm rounded-lg transition-colors">IT History</a>
+                        <a href="#" @click.prevent="currentPage = 'cleaningHistory'" :class="isActive('cleaningHistory')" class="flex items-center w-full pl-16 pr-4 py-2.5 text-sm rounded-lg transition-colors">Cleaning</a>
+                        <a href="#" @click.prevent="currentPage = 'beverageHistory'" :class="isActive('beverageHistory')" class="flex items-center w-full pl-16 pr-4 py-2.5 text-sm rounded-lg transition-colors">Beverages</a>
+                        <a href="#" @click.prevent="currentPage = 'foodHistory'" :class="isActive('foodHistory')" class="flex items-center w-full pl-16 pr-4 py-2.5 text-sm rounded-lg transition-colors">Food</a>
+                        <a href="#" @click.prevent="currentPage = 'storeHistory'" :class="isActive('storeHistory')" class="flex items-center w-full pl-16 pr-4 py-2.5 text-sm rounded-lg transition-colors">Store</a>
+                    </div>
+                </div>
+                <a href="#" @click.prevent="currentPage = 'billing'" :class="isActive('billing')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                    <i class="fa-solid fa-file-invoice-dollar h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                    <span class="ml-4 text-base font-medium nav-text">My Food Bills</span>
+                </a>
+                <div class="pt-4 nav-divider"><hr class="border-t border-slate-200" /></div>
+                <a href="#" @click.prevent="currentPage = 'broadcasts'" :class="isActive('broadcasts')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                    <i class="fa-solid fa-bullhorn h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                    <span class="ml-4 text-base font-medium nav-text">Broadcasts</span>
+                </a>
+                <a href="#" @click.prevent="currentPage = 'help'" :class="isActive('help')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                    <i class="fa-solid fa-circle-question h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                    <span class="ml-4 text-base font-medium nav-text">Help & Queries</span>
+                </a>
+            </nav>
+            <div @click="openProfileModal()" class="p-4 border-t border-slate-200 mt-auto cursor-pointer hover:bg-slate-50 transition-colors">
+                <div class="flex items-center" :class="!sidebarOpen && 'justify-center'">
+                    <div class="flex-shrink-0">
+                        <template x-if="currentUser && currentUser.pic"><img :src="currentUser.pic" alt="Profile" class="h-12 w-12 rounded-full object-cover" /></template>
+                        <template x-if="!currentUser || !currentUser.pic"><div class="h-12 w-12 rounded-full bg-indigo-500 text-white flex items-center justify-center text-xl font-semibold"><span x-text="currentUser ? currentUser.fullName.charAt(0) : '?'"></span></div></template>
+                    </div>
+                    <div class="ml-4 profile-text">
+                        <p class="text-base font-semibold" x-text="currentUser ? currentUser.fullName : 'Loading...'"></p>
+                        <p class="text-sm text-slate-500" x-text="currentUser ? currentUser.role : '...'"></p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <header class="flex items-center justify-between h-20 px-8 bg-white border-b border-slate-200 print:hidden">
+                <button @click="sidebarOpen = !sidebarOpen" class="text-slate-500 hover:text-indigo-600 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"><svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg></button>
+                <div class="flex items-center space-x-4">
+                    <div x-data="liveClock()" x-init="start()" class="text-base text-slate-600 hidden md:block">
+                        <span x-text="date"></span>, <span x-text="time" class="font-medium text-slate-800"></span>
+                    </div>
+                    <div x-data="{ open: false }" class="relative">
+                        <button @click="open = !open; markNotificationsAsRead()" class="relative p-3 text-slate-500 bg-slate-100 rounded-full hover:bg-slate-200 focus:outline-none" title="Notifications">
+                            <span class="sr-only">View notifications</span>
+                            <i class="fa-solid fa-bell text-xl"></i>
+                            <span x-show="unreadNotificationsCount > 0" class="absolute top-1 right-1 h-3 w-3 bg-red-500 rounded-full border-2 border-white"></span>
+                        </button>
+                        <div x-show="open" @click.away="open = false" x-transition class="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border z-50" x-cloak>
+                            <div class="p-4 font-semibold border-b">Notifications</div>
+                            <div class="p-2 max-h-96 overflow-y-auto">
+                                <template x-for="notification in notifications" :key="notification.id">
+                                    <div class="p-3 rounded-lg hover:bg-slate-50">
+                                        <p class="text-sm" x-html="notification.text"></p>
+                                        <p class="text-xs text-slate-500 mt-1" x-text="notification.time"></p>
+                                    </div>
+                                </template>
+                                <div x-show="notifications.length === 0" class="text-center p-8 text-slate-500 text-sm">No new notifications</div>
+                            </div>
+                        </div>
+                    </div>
+                    <button @click="openHelpModal()" class="p-3 text-slate-500 bg-slate-100 rounded-full hover:bg-slate-200 focus:outline-none" title="Help & Support">
+                        <span class="sr-only">Help & Support</span>
+                        <i class="fa-solid fa-question-circle text-xl"></i>
+                    </button>
+                    <a href="/logout" class="p-3 text-slate-500 bg-slate-100 rounded-full hover:bg-slate-200 hover:text-red-600 focus:outline-none" title="Logout">
+                        <span class="sr-only">Logout</span>
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                    </a>
+                </div>
+            </header>
+            <main class="flex-1 overflow-x-hidden overflow-y-auto bg-slate-100">
+                <div x-show="isLoading" class="flex items-center justify-center h-full"><div class="flex items-center space-x-3"><div class="w-10 h-10 border-4 border-indigo-200 rounded-full loading-spinner"></div><p class="text-lg font-medium">Loading Dashboard...</p></div></div>
+                
+                <div x-show="!isLoading && currentPage === 'dashboard'" x-cloak x-transition.opacity.duration.300ms class="p-8 space-y-8">
+                    <div><h1 class="text-4xl font-bold">My Dashboard</h1><p class="text-lg text-slate-600 mt-1" x-show="currentUser">Welcome back, <span x-text="currentUser.fullName ? currentUser.fullName.split(' ')[0] : 'User'"></span>.</p></div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200 flex items-center justify-between"><div><p class="text-base font-medium text-slate-500">Open Requests</p><p class="text-4xl font-bold" x-text="stats.openRequests"></p></div><div class="p-4 rounded-full bg-red-100 text-red-600"><i class="fa-solid fa-folder-open text-3xl"></i></div></div>
+                        <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200 flex items-center justify-between"><div><p class="text-base font-medium text-slate-500">In Progress</p><p class="text-4xl font-bold" x-text="stats.inProgress"></p></div><div class="p-4 rounded-full bg-sky-100 text-sky-600"><i class="fa-solid fa-spinner text-3xl"></i></div></div>
+                        <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200 flex items-center justify-between"><div><p class="text-base font-medium text-slate-500">Completed</p><p class="text-4xl font-bold" x-text="stats.completed"></p></div><div class="p-4 rounded-full bg-green-100 text-green-600"><i class="fa-solid fa-check-double text-3xl"></i></div></div>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+                        <div class="lg:col-span-3 bg-white p-8 rounded-xl shadow-md border border-slate-200"><h3 class="text-xl font-semibold mb-4">Requests by Category</h3><div class="h-80"><canvas id="requestsChart"></canvas></div></div>
+                        <div class="lg:col-span-2 bg-white p-8 rounded-xl shadow-md border border-slate-200"><h3 class="text-xl font-semibold mb-4">Recent Activity</h3>
+                            <ul class="divide-y divide-slate-200 -mt-2">
+                                <template x-for="req in recentActivities" :key="req._id">
+                                    <li class="py-3 flex justify-between items-center">
+                                        <div class="flex items-center gap-3"><i :class="getRequestIcon(req.type, req.status)" class="text-xl w-6 text-center"></i><div><p class="font-semibold" x-text="getRequestBody(req)"></p><p class="text-sm text-slate-500" x-text="`${req.type} on ${formatDate(req.createdAt, false)}`"></p></div></div>
+                                        <span class="status-badge" :class="getStatusClass(req.status)" x-text="req.status"></span>
+                                    </li>
+                                </template>
+                                <li x-show="recentActivities.length === 0" class="py-8 text-center text-slate-500">No recent activity.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div x-show="!isLoading && currentPage === 'newRequest'" x-cloak x-transition.opacity.duration.300ms class="p-8 space-y-8">
+                      <div><h1 class="text-4xl font-bold">Create a New Request</h1><p class="text-lg text-slate-600 mt-1">Select a service to get started.</p></div>
+                      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                          <a href="/submit-ticket" class="group block p-8 bg-white rounded-xl shadow-md border border-slate-200 hover:shadow-xl hover:-translate-y-2 transition-all duration-300"><div class="flex items-center justify-center h-16 w-16 rounded-full bg-indigo-100 text-indigo-600 mb-4 transition-all duration-300 group-hover:scale-110 group-hover:bg-indigo-600 group-hover:text-white"><i class="fa-solid fa-desktop text-3xl"></i></div><h3 class="text-xl font-bold">IT Support</h3><p class="mt-2 text-slate-600">Report hardware, software, or network issues.</p></a>
+                          <a href="/request-cleaning" class="group block p-8 bg-white rounded-xl shadow-md border border-slate-200 hover:shadow-xl hover:-translate-y-2 transition-all duration-300"><div class="flex items-center justify-center h-16 w-16 rounded-full bg-indigo-100 text-indigo-600 mb-4 transition-all duration-300 group-hover:scale-110 group-hover:bg-indigo-600 group-hover:text-white"><i class="fa-solid fa-soap text-3xl"></i></div><h3 class="text-xl font-bold">Request Cleaning</h3><p class="mt-2 text-slate-600">Request cleaning for your desk or area.</p></a>
+                          <a href="/order-beverage" class="group block p-8 bg-white rounded-xl shadow-md border border-slate-200 hover:shadow-xl hover:-translate-y-2 transition-all duration-300"><div class="flex items-center justify-center h-16 w-16 rounded-full bg-indigo-100 text-indigo-600 mb-4 transition-all duration-300 group-hover:scale-110 group-hover:bg-indigo-600 group-hover:text-white"><i class="fa-solid fa-mug-hot text-3xl"></i></div><h3 class="text-xl font-bold">Order a Beverage</h3><p class="mt-2 text-slate-600">Get coffee, tea, or water from the canteen.</p></a>
+                          <a href="/request_preorder" class="group block p-8 bg-white rounded-xl shadow-md border border-slate-200 hover:shadow-xl hover:-translate-y-2 transition-all duration-300"><div class="flex items-center justify-center h-16 w-16 rounded-full bg-indigo-100 text-indigo-600 mb-4 transition-all duration-300 group-hover:scale-110 group-hover:bg-indigo-600 group-hover:text-white"><i class="fa-solid fa-utensils text-3xl"></i></div><h3 class="text-xl font-bold">Pre-Order Food</h3><p class="mt-2 text-slate-600">Order lunch or snacks from the canteen menu.</p></a>
+                          <a href="/request_store" class="group block p-8 bg-white rounded-xl shadow-md border border-slate-200 hover:shadow-xl hover:-translate-y-2 transition-all duration-300"><div class="flex items-center justify-center h-16 w-16 rounded-full bg-indigo-100 text-indigo-600 mb-4 transition-all duration-300 group-hover:scale-110 group-hover:bg-indigo-600 group-hover:text-white"><i class="fa-solid fa-box-archive text-3xl"></i></div><h3 class="text-xl font-bold">Request Store Item</h3><p class="mt-2 text-slate-600">Request stationery from the office store.</p></a>
+                      </div>
+                </div>
+
+                <div x-show="!isLoading && (isHistoryPageActive() || currentPage === 'liveRequests')" x-cloak x-transition.opacity.duration.300ms class="p-8 space-y-8">
+                    <div><h1 class="text-4xl font-bold" x-text="currentPageData.title"></h1><p class="text-lg text-slate-600 mt-1" x-text="currentPageData.description"></p></div>
+                    <div class="bg-white rounded-xl shadow-md border border-slate-200">
+                        <div class="p-4 border-b flex justify-between items-center">
+                            <input type="search" x-model="historySearchQuery" placeholder="Search requests..." class="w-full md:w-1/2 text-base px-4 py-2 rounded-md bg-slate-100 border-transparent focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                            <button @click="downloadHistoryAsCSV()" x-show="isHistoryPageActive()" class="ml-4 px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-md hover:bg-indigo-700 flex items-center gap-2">
+                                <i class="fa-solid fa-download"></i>
+                                <span>Download CSV</span>
+                            </button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-base text-left">
+                                <thead class="text-sm text-slate-700 uppercase bg-slate-50"><tr><th scope="col" class="px-6 py-3">Date</th><th scope="col" class="px-6 py-3">Type</th><th scope="col" class="px-6 py-3">Details</th><th scope="col" class="px-6 py-3">Resolution Note</th><th scope="col" class="px-6 py-3">Status</th><th scope="col" class="px-6 py-3">Your Rating</th><th scope="col" class="px-6 py-3">Actions</th></tr></thead>
+                                <tbody class="divide-y divide-slate-200">
+                                    <template x-for="req in searchFilteredRequests" :key="req._id">
+                                        <tr class="hover:bg-slate-50 transition-colors duration-200">
+                                            <td class="px-6 py-4 whitespace-nowrap" x-text="formatDate(req.createdAt)"></td>
+                                            <td class="px-6 py-4"><span class="font-semibold" x-text="req.type"></span></td>
+                                            <td class="px-6 py-4" x-text="getRequestBody(req)"></td>
+                                            <td class="px-6 py-4 text-sm text-slate-500" x-text="getResolutionNote(req)"></td>
+                                            <td class="px-6 py-4"><span class="status-badge" :class="getStatusClass(req.status)" x-text="req.status"></span></td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-amber-500" x-text="formatRating(req.rating)"></td>
+                                            <td class="px-6 py-4 whitespace-nowrap space-x-4 text-sm font-semibold">
+                                                <template x-if="req.typeKey === 'food' && isComplete(req.status)">
+                                                    <button @click="openBillModal(req)" class="text-slate-600 hover:underline">View Bill</button>
+                                                </template>
+                                                <button @click="openChatModal(req)" class="text-indigo-600 hover:underline">Chat</button>
+                                                <button x-show="isComplete(req.status) && !req.rating" @click="openRatingModal(req)" class="text-green-600 hover:underline">Rate</button>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                    <tr x-show="searchFilteredRequests.length === 0"><td colspan="7" class="text-center p-8 text-slate-500" x-text="currentPageData.emptyState.title"></td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div x-show="!isLoading && currentPage === 'billing'" x-cloak x-transition.opacity.duration.300ms class="p-8 space-y-8">
+                    <div><h1 class="text-4xl font-bold">My Food Bills</h1><p class="text-lg text-slate-600 mt-1">A summary of your food expenses from the canteen.</p></div>
+                     <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200">
+                            <p class="text-base font-medium text-slate-500">Total Food Spend</p>
+                            <p class="text-4xl font-bold" x-text="`₹${foodBillingStats.totalSpend.toFixed(2)}`"></p>
+                        </div>
+                         <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200">
+                            <p class="text-base font-medium text-slate-500">Paid from Salary</p>
+                            <p class="text-4xl font-bold" x-text="`₹${foodBillingStats.paidBySalary.toFixed(2)}`"></p>
+                        </div>
+                         <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200">
+                            <p class="text-base font-medium text-slate-500">Paid by Cash</p>
+                            <p class="text-4xl font-bold" x-text="`₹${foodBillingStats.paidByCash.toFixed(2)}`"></p>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-md border border-slate-200">
+                        <div class="p-4 border-b"><h3 class="text-xl font-semibold">Expense History</h3></div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-base text-left">
+                                <thead class="text-sm text-slate-700 uppercase bg-slate-50"><tr><th scope="col" class="px-6 py-3">Date</th><th scope="col" class="px-6 py-3">Items</th><th scope="col" class="px-6 py-3">Payment Method</th><th scope="col" class="px-6 py-3">Total</th></tr></thead>
+                                <tbody class="divide-y divide-slate-200">
+                                    <template x-for="order in foodBillingStats.orders" :key="order._id">
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap" x-text="formatDate(order.completedAt || order.createdAt)"></td>
+                                            <td class="px-6 py-4 font-semibold" x-text="summarizeItems(order.items)"></td>
+                                            <td class="px-6 py-4" x-text="order.paymentMethod"></td>
+                                            <td class="px-6 py-4 font-bold" x-text="`₹${order.totalPrice.toFixed(2)}`"></td>
+                                        </tr>
+                                    </template>
+                                    <tr x-show="foodBillingStats.orders.length === 0"><td colspan="4" class="text-center p-8 text-slate-500">No completed food orders found.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div x-show="!isLoading && currentPage === 'broadcasts'" x-cloak x-transition.opacity.duration.300ms class="p-8 space-y-8">
+                    <div><h1 class="text-4xl font-bold">Broadcasts</h1><p class="text-lg text-slate-600 mt-1">Important announcements from the admin team.</p></div>
+                    <div class="max-w-4xl mx-auto space-y-6">
+                         <template x-for="post in broadcasts" :key="post._id">
+                            <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200 flex items-start gap-5">
+                                <div class="flex-shrink-0"><div class="h-12 w-12 rounded-full bg-indigo-500 text-white flex items-center justify-center text-xl font-semibold"><span x-text="post.senderName.charAt(0)"></span></div></div>
+                                <div class="flex-grow">
+                                    <div class="flex items-baseline justify-between"><div><p class="font-bold text-lg" x-text="post.senderName"></p><p class="text-sm text-slate-500" x-text="post.senderRole"></p></div><p class="text-sm text-slate-400" x-text="formatDate(post.createdAt, true)"></p></div>
+                                    <p class="mt-3 text-base text-slate-700 whitespace-pre-wrap" x-text="post.message"></p>
+                                </div>
+                            </div>
+                        </template>
+                        <div x-show="broadcasts.length === 0" class="text-center py-12 text-slate-500"><p class="font-semibold text-lg">No Broadcasts Yet</p></div>
+                    </div>
+                </div>
+
+                <div x-show="!isLoading && currentPage === 'help'" x-cloak x-transition.opacity.duration.300ms class="p-8 space-y-8">
+                    <div><h1 class="text-4xl font-bold">Help & Queries</h1><p class="text-lg text-slate-600 mt-1">Find answers or submit a query to our team.</p></div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div class="bg-white p-8 rounded-xl shadow-md border border-slate-200">
+                            <h2 class="text-2xl font-bold mb-6">Frequently Asked Questions</h2>
+                            <div x-data="{ open: null }" class="space-y-4">
+                                <div class="bg-white rounded-lg border">
+                                    <button @click="open = open === 1 ? null : 1" class="w-full text-left p-4 flex justify-between items-center"><span class="font-semibold">How do I track my request?</span><i class="fa-solid fa-chevron-down transition-transform" :class="open === 1 && 'rotate-180'"></i></button>
+                                    <div x-show="open === 1" x-transition class="p-4 pt-0 text-slate-600"><p>You can see all your active requests on the "Live Requests" page. For completed requests, check the "History" pages.</p></div>
+                                </div>
+                                <div class="bg-white rounded-lg border">
+                                    <button @click="open = open === 2 ? null : 2" class="w-full text-left p-4 flex justify-between items-center"><span class="font-semibold">How do I use the Chat function?</span><i class="fa-solid fa-chevron-down transition-transform" :class="open === 2 && 'rotate-180'"></i></button>
+                                    <div x-show="open === 2" x-transition class="p-4 pt-0 text-slate-600"><p>Click the "Chat" button next to any request to open a live chat window with the department handling your request.</p></div>
+                                </div>
+                                <div class="bg-white rounded-lg border">
+                                    <button @click="open = open === 3 ? null : 3" class="w-full text-left p-4 flex justify-between items-center"><span class="font-semibold">When can I rate a service?</span><i class="fa-solid fa-chevron-down transition-transform" :class="open === 3 && 'rotate-180'"></i></button>
+                                    <div x-show="open === 3" x-transition class="p-4 pt-0 text-slate-600"><p>A "Rate" button will appear next to a request once its status is marked as 'Completed', 'Resolved', or 'Delivered'.</p></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-white p-8 rounded-xl shadow-md border border-slate-200">
+                            <h2 class="text-2xl font-bold mb-6">Submit a Query</h2>
+                            <form @submit.prevent="alert('Thank you for your query! We will get back to you shortly.'); $el.reset()">
+                                <div class="space-y-4">
+                                    <div><label for="querySubject" class="block text-sm font-medium">Subject</label><input id="querySubject" type="text" placeholder="e.g., Question about food menu" required class="mt-1 block w-full rounded-md border-slate-300 shadow-sm"></div>
+                                    <div><label for="queryMessage" class="block text-sm font-medium">Message</label><textarea id="queryMessage" rows="5" placeholder="Please describe your question or feedback in detail." required class="mt-1 block w-full rounded-md border-slate-300 shadow-sm"></textarea></div>
+                                    <div class="flex justify-end"><button type="submit" class="px-5 py-2.5 text-base font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700">Submit Query</button></div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+
+        <div x-show="isProfileModalOpen" @keydown.escape.window="closeProfileModal()" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" x-cloak><div @click.away="closeProfileModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-3xl mx-4" x-show="isProfileModalOpen" x-transition.scale><div class="p-8" x-show="editableUser"><h2 class="text-2xl font-bold mb-6">My Profile</h2><div class="flex flex-col md:flex-row gap-8"><div class="flex-shrink-0 text-center md:w-1/4"><img class="h-32 w-32 rounded-full object-cover mx-auto ring-4 ring-indigo-200" :src="profilePicPreviewUrl || (editableUser.pic) || 'https://placehold.co/128x128/c4b5fd/4338ca?text=' + editableUser.fullName.charAt(0)" alt="Profile Picture"><input type="file" @change="handleProfilePicChange" x-ref="profilePicInput" class="hidden" accept="image/*"><button @click="$refs.profilePicInput.click()" class="mt-4 text-base font-semibold text-indigo-600 hover:text-indigo-800">Change Picture</button></div><div class="flex-grow grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4"><div><label class="block text-sm font-medium text-slate-500">Full Name</label><input type="text" :value="editableUser.fullName" disabled class="mt-1 w-full bg-slate-100 rounded-md border-slate-300 cursor-not-allowed px-3 py-2"></div><div><label class="block text-sm font-medium text-slate-500">Employee ID</label><input type="text" :value="editableUser.employeeId" disabled class="mt-1 w-full bg-slate-100 rounded-md border-slate-300 cursor-not-allowed px-3 py-2"></div><div><label class="block text-sm font-medium text-slate-500">Email</label><input type="email" :value="editableUser.email" disabled class="mt-1 w-full bg-slate-100 rounded-md border-slate-300 cursor-not-allowed px-3 py-2"></div><div><label class="block text-sm font-medium text-slate-500">Department</label><input type="text" :value="editableUser.department" disabled class="mt-1 w-full bg-slate-100 rounded-md border-slate-300 cursor-not-allowed px-3 py-2"></div><div class="md:col-span-2"><label class="block text-sm font-medium text-slate-500">Role</label><input type="text" :value="editableUser.role" disabled class="mt-1 w-full bg-slate-100 rounded-md border-slate-300 cursor-not-allowed px-3 py-2"></div><div class="md:col-span-2"><label for="phone" class="block text-sm font-medium">Phone Number</label><input id="phone" type="tel" x-model="editableUser.phone" class="mt-1 w-full rounded-md border-slate-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></div><div class="md:col-span-2"><label for="address" class="block text-sm font-medium">Address</label><textarea id="address" rows="2" x-model="editableUser.address" class="mt-1 w-full rounded-md border-slate-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></textarea></div></div></div><div class="mt-8 pt-5 border-t flex justify-end gap-3"><button @click="closeProfileModal()" type="button" class="px-5 py-2.5 text-base font-medium bg-white border border-slate-300 rounded-md hover:bg-slate-50">Cancel</button><button @click="saveProfileChanges()" type="button" class="px-5 py-2.5 text-base font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700">Save Changes</button></div></div></div></div>
+        <div x-show="isChatModalOpen" @keydown.escape.window="closeChatModal()" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" x-cloak><div @click.away="closeChatModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4" x-show="isChatModalOpen" x-transition.scale><div class="p-6"><div class="flex justify-between items-center pb-3 border-b"><h2 class="text-xl font-bold">Chat History</h2><button @click="closeChatModal()" class="text-slate-400 hover:text-slate-600 text-2xl">&times;</button></div><div class="mt-4 mb-4 h-64 overflow-y-auto p-3 bg-slate-50 rounded-md space-y-4" x-ref="chatHistory"><template x-for="msg in chatHistory"><div class="flex" :class="msg.senderRole === 'Employee' ? 'justify-end' : 'justify-start'"><div class="max-w-xs px-4 py-2 rounded-lg" :class="msg.senderRole === 'Employee' ? 'bg-indigo-500 text-white' : 'bg-slate-200 text-slate-800'"><p class="text-sm font-bold" x-text="msg.senderName"></p><p class="text-sm" x-text="msg.message"></p></div></div></template></div><form @submit.prevent="sendChatMessage()"><div class="flex gap-2"><input type="text" x-model="chatMessageInput" placeholder="Type your message..." class="flex-grow w-full rounded-md bg-transparent border-slate-300 shadow-sm" autocomplete="off" required><button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md">Send</button></div></form></div></div></div>
+        <div x-show="isRatingModalOpen" @keydown.escape.window="closeRatingModal()" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" x-cloak><div @click.away="closeRatingModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4" x-show="isRatingModalOpen" x-transition.scale><form @submit.prevent="submitRating()"><div class="p-8"><h2 class="text-xl font-bold mb-1">Submit Feedback</h2><p class="text-sm text-slate-600 mb-4" x-text="getRequestBody(activeRequest)"></p><div class="mb-4"><label class="block text-sm font-medium mb-2">Your Rating</label><div class="flex items-center space-x-1 text-3xl text-slate-300 star-rating-input"><template x-for="star in 5"><span @click="rating = star" :class="star <= rating ? 'text-amber-400' : ''">&starf;</span></template></div></div><div><label for="review" class="block text-sm font-medium">Your Review (Optional)</label><textarea id="review" x-model="review" rows="4" class="mt-1 w-full rounded-md border-slate-300 shadow-sm"></textarea></div></div><div class="px-6 py-4 bg-slate-50 rounded-b-2xl flex justify-end gap-3"><button @click="closeRatingModal()" type="button" class="px-5 py-2.5 text-base font-medium rounded-md shadow-sm">Cancel</button><button type="submit" class="px-5 py-2.5 text-base font-medium text-white bg-indigo-600 rounded-md">Submit</button></div></form></div></div>
+        <div x-show="isHelpModalOpen" @keydown.escape.window="isHelpModalOpen = false" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" x-cloak><div @click.away="isHelpModalOpen = false" class="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4" x-show="isHelpModalOpen" x-transition.scale><div class="p-8"><h2 class="text-2xl font-bold mb-6">Help & Support</h2><p>For any technical issues with the dashboard, please create an IT Support ticket. For questions about a specific service request, please use the 'Chat' function on that request.</p><div class="flex justify-end mt-6"><button @click="currentPage = 'help'; isHelpModalOpen = false;" class="px-5 py-2.5 text-base font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700">Go to Help Page</button></div></div></div></div>
+        <div x-show="isBillModalOpen" @keydown.escape.window="closeBillModal()" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" x-cloak><div @click.away="closeBillModal()" class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4" x-show="isBillModalOpen" x-transition.scale><div class="p-8" x-show="billToView"><div class="text-center mb-6"><img src="/logo.png" alt="JC NEXUS Hub Logo" class="h-16 w-auto mx-auto"><h2 class="text-2xl font-bold mt-2">JC NEXUS HUB - Canteen</h2><p class="text-sm text-slate-500">Tax Invoice</p></div><div class="flex justify-between border-b pb-4 mb-4 text-sm"><div><p class="font-bold">Billed To:</p><p x-text="billToView.requesterName"></p><p x-text="'ID: ' + billToView.employeeId"></p></div><div><p><span class="font-bold">Bill No:</span> <span x-text="billToView._id.slice(-6).toUpperCase()"></span></p><p><span class="font-bold">Date:</span> <span x-text="formatDate(billToView.completedAt, true)"></span></p><p><span class="font-bold">Paid Via:</span> <span x-text="billToView.paymentMethod"></span></p></div></div><table class="w-full text-left text-sm mb-4"><thead><tr class="border-b"><th class="py-2">Item</th><th class="text-center">Qty</th><th class="text-right">Price</th><th class="text-right">Total</th></tr></thead><tbody><template x-for="item in billToView.items"><tr><td class="py-2" x-text="item.name"></td><td class="text-center" x-text="item.quantity"></td><td class="text-right" x-text="`₹${item.price.toFixed(2)}`"></td><td class="text-right" x-text="`₹${(item.price * item.quantity).toFixed(2)}`"></td></tr></template></tbody></table><div class="border-t pt-4"><div class="flex justify-end text-lg font-bold"><span>Grand Total:</span><span class="ml-4" x-text="`₹${billToView.totalPrice.toFixed(2)}`"></span></div></div><div class="mt-8 text-center text-xs text-slate-500"><p>Thank you for your order!</p></div></div><div class="px-8 pb-8 flex gap-4"><button @click="closeBillModal()" class="w-full py-2 px-4 rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300">Close</button></div></div></div>
+    </div>
+
+    <script>
+        const socket = io();
+        function dashboardApp() {
+            return {
+                sidebarOpen: true,
+                currentPage: 'dashboard',
+                isLoading: true,
+                currentUser: null,
+                allRequests: [],
+                broadcasts: [],
+                notifications: [],
+                unreadNotificationsCount: 0,
+                chartInstance: null,
+                historySearchQuery: '',
+                isProfileModalOpen: false, isChatModalOpen: false, isRatingModalOpen: false, isHelpModalOpen: false, isBillModalOpen: false,
+                editableUser: null, profilePicPreviewUrl: null,
+                activeRequest: {}, chatRequest: {}, chatHistory: [], chatMessageInput: '',
+                billToView: null,
+                rating: 0, review: '',
+
+                isHistoryPageActive() { return ['history', 'itHistory', 'cleaningHistory', 'beverageHistory', 'foodHistory', 'storeHistory'].includes(this.currentPage); },
+                
+                get stats() {
+                    return {
+                        openRequests: this.allRequests.filter(r => !['Resolved', 'Completed', 'Delivered', 'Cancelled'].includes(r.status)).length,
+                        inProgress: this.allRequests.filter(r => ['In Progress', 'Preparing', 'Approved'].includes(r.status)).length,
+                        completed: this.allRequests.filter(r => ['Resolved', 'Completed', 'Delivered'].includes(r.status)).length,
+                    }
+                },
+                get foodBillingStats() {
+                    const deliveredFoodOrders = this.allRequests.filter(r => r.typeKey === 'food' && r.status === 'Delivered');
+                    const totalSpend = deliveredFoodOrders.reduce((sum, order) => sum + (order.totalPrice || 0), 0);
+                    const paidBySalary = deliveredFoodOrders.filter(order => order.paymentMethod === 'Deduct from Salary').reduce((sum, order) => sum + (order.totalPrice || 0), 0);
+                    const paidByCash = deliveredFoodOrders.filter(order => order.paymentMethod === 'Cash').reduce((sum, order) => sum + (order.totalPrice || 0), 0);
+                    return { totalSpend, paidBySalary, paidByCash, orders: deliveredFoodOrders, };
+                },
+                get recentActivities() { return this.allRequests.slice(0, 5); },
+                get searchFilteredRequests() {
+                    let data;
+                    const completedStatuses = ['Resolved', 'Completed', 'Delivered', 'Cancelled'];
+                    const liveStatuses = ['Pending', 'In Progress', 'Preparing', 'Approved', 'Ready for Pickup'];
+                    switch(this.currentPage) {
+                        case 'liveRequests': data = this.allRequests.filter(r => liveStatuses.includes(r.status)); break;
+                        case 'history': data = this.allRequests.filter(r => completedStatuses.includes(r.status)); break;
+                        case 'itHistory': data = this.allRequests.filter(r => r.typeKey === 'ticket' && completedStatuses.includes(r.status)); break;
+                        case 'cleaningHistory': data = this.allRequests.filter(r => r.typeKey === 'cleaning' && completedStatuses.includes(r.status)); break;
+                        case 'beverageHistory': data = this.allRequests.filter(r => r.typeKey === 'beverage' && completedStatuses.includes(r.status)); break;
+                        case 'foodHistory': data = this.allRequests.filter(r => r.typeKey === 'food' && completedStatuses.includes(r.status)); break;
+                        case 'storeHistory': data = this.allRequests.filter(r => r.typeKey === 'store' && completedStatuses.includes(r.status)); break;
+                        default: data = [];
+                    }
+                    if (!this.historySearchQuery.trim()) return data;
+                    const query = this.historySearchQuery.toLowerCase();
+                    return data.filter(req => JSON.stringify(req).toLowerCase().includes(query));
+                },
+                get currentPageData() {
+                    const pages = {
+                        liveRequests: { title: 'Live Requests', description: 'All your requests that are not yet completed.', emptyState: { title: 'No live requests' }},
+                        history: { title: 'Full Request History', description: 'A log of all your past completed requests.', emptyState: { title: 'No completed requests found' }},
+                        itHistory: { title: 'IT Support History', description: 'A history of all your completed IT tickets.', emptyState: { title: 'No completed IT tickets found' }},
+                        cleaningHistory: { title: 'Cleaning History', description: 'A history of all your completed cleaning requests.', emptyState: { title: 'No completed cleaning requests' }},
+                        beverageHistory: { title: 'Beverage History', description: 'A history of all your completed beverage orders.', emptyState: { title: 'No completed beverage orders' }},
+                        foodHistory: { title: 'Food Order History', description: 'A history of all your completed food orders.', emptyState: { title: 'No completed food orders' }},
+                        storeHistory: { title: 'Store Item History', description: 'A history of all your completed store item requests.', emptyState: { title: 'No completed store requests' }},
+                    };
+                    return pages[this.currentPage] || {};
+                },
+                initApp() { this.fetchData(); this.setupSocketListeners(); this.$watch('allRequests', () => this.updateChart()); },
+                async fetchData() {
+                    this.isLoading = true;
+                    try {
+                        const [userRes, requestsRes, broadcastsRes] = await Promise.all([ fetch('/api/user-info'), fetch('/api/employee/my-requests'), fetch('/api/broadcasts') ]);
+                        if (!userRes.ok || !requestsRes.ok) throw new Error('Failed to fetch dashboard data.');
+                        this.currentUser = await userRes.json();
+                        const requestsData = await requestsRes.json();
+                        const combined = [
+                            ...requestsData.tickets.map(r => ({ ...r, type: 'IT Ticket', typeKey: 'ticket'})),
+                            ...requestsData.cleaning.map(r => ({ ...r, type: 'Cleaning', typeKey: 'cleaning'})),
+                            ...requestsData.orders.map(r => ({ ...r, type: 'Beverage', typeKey: 'beverage'})),
+                            ...requestsData.foodOrders.map(r => ({ ...r, type: 'Food', typeKey: 'food'})),
+                            ...requestsData.storeRequests.map(r => ({ ...r, type: 'Store', typeKey: 'store'}))
+                        ];
+                        this.allRequests = combined.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+                        if (broadcastsRes.ok) this.broadcasts = await broadcastsRes.json();
+                    } catch (error) { console.error("Dashboard Loading Error:", error); } 
+                    finally { this.isLoading = false; }
+                },
+                setupSocketListeners() {
+                    const findRequestAndNotify = (updatedReq, typeKey) => {
+                        const oldReq = this.allRequests.find(r => r._id === updatedReq._id);
+                        if (oldReq && oldReq.status !== updatedReq.status) {
+                            let notificationText = `Your ${this.getRequestType(typeKey)} request is now <strong>${updatedReq.status}</strong>.`;
+                            if (typeKey === 'food' && updatedReq.status === 'Ready for Pickup') {
+                                 notificationText = `Your food order (${this.summarizeItems(updatedReq.items)}) is <strong>Ready for Pickup</strong>.`;
+                            }
+                            this.notifications.unshift({ id: Date.now() + Math.random(), text: notificationText, time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute:'2-digit' }) });
+                            this.unreadNotificationsCount++;
+                        }
+                    };
+                    socket.on('ticket-updated', d => { findRequestAndNotify(d, 'ticket'); this.fetchData(); });
+                    socket.on('cleaning-updated', d => { findRequestAndNotify(d, 'cleaning'); this.fetchData(); });
+                    socket.on('order-updated', d => { findRequestAndNotify(d, 'beverage'); this.fetchData(); });
+                    socket.on('food-order-updated', d => { findRequestAndNotify(d, 'food'); this.fetchData(); });
+                    socket.on('store-request-updated', d => { findRequestAndNotify(d, 'store'); this.fetchData(); });
+                    socket.on('new-broadcast', (broadcast) => {
+                        this.notifications.unshift({
+                            id: broadcast._id || Date.now(),
+                            text: `<strong>New Broadcast:</strong> ${broadcast.message.substring(0, 50)}...`,
+                            time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute:'2-digit' })
+                        });
+                        this.unreadNotificationsCount++;
+                        this.fetchData();
+                    });
+                    socket.on('chat-message', msg => { if (this.isChatModalOpen && this.chatRequest._id === msg.requestId) { this.chatHistory.push(msg); this.$nextTick(() => { if(this.$refs.chatHistory) { this.$refs.chatHistory.scrollTop = this.$refs.chatHistory.scrollHeight; } }); } });
+                },
+                openProfileModal() { if (this.currentUser) { this.editableUser = JSON.parse(JSON.stringify(this.currentUser)); this.profilePicPreviewUrl = null; this.isProfileModalOpen = true; } },
+                closeProfileModal() { this.isProfileModalOpen = false; this.editableUser = null; this.profilePicPreviewUrl = null; },
+                async saveProfileChanges() {
+                    try {
+                        const response = await fetch('/api/profile/update', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ address: this.editableUser.address, phone: this.editableUser.phone })
+                        });
+                        if (!response.ok) throw new Error('Failed to update profile.');
+                        this.currentUser = await response.json();
+                        alert('Profile changes saved successfully!');
+                        this.closeProfileModal();
+                    } catch(error) { alert(error.message); }
+                },
+                handleProfilePicChange(event) { const file = event.target.files[0]; if (file) { this.profilePicPreviewUrl = URL.createObjectURL(file); } },
+                openChatModal(request) {
+                    this.chatRequest = request;
+                    this.isChatModalOpen = true; this.chatHistory = [];
+                    fetch(`/api/${request.typeKey}/details/${request._id}`).then(res => res.json()).then(data => { this.chatHistory = data.chatHistory || []; this.$nextTick(() => { if(this.$refs.chatHistory) { this.$refs.chatHistory.scrollTop = this.$refs.chatHistory.scrollHeight; } }); });
+                    socket.emit('join-chat-room', { type: request.typeKey, requestId: request._id });
+                },
+                closeChatModal() { this.isChatModalOpen = false; },
+                sendChatMessage() {
+                    if (!this.chatMessageInput.trim()) return;
+                    socket.emit('send-chat-message', { type: this.chatRequest.typeKey, requestId: this.chatRequest._id, message: this.chatMessageInput });
+                    this.chatMessageInput = '';
+                },
+                openRatingModal(request) { this.activeRequest = request; this.rating = 0; this.review = ''; this.isRatingModalOpen = true; },
+                closeRatingModal() { this.isRatingModalOpen = false; },
+                async submitRating() {
+                    if (this.rating === 0) { alert('Please select a star rating.'); return; }
+                    const typeKey = this.activeRequest.typeKey;
+                    const typeMap = { ticket: 'tickets', cleaning: 'cleaning', beverage: 'beverages', food: 'food', store: 'store' };
+                    const idMap = { ticket: 'ticketId', default: 'requestId' };
+                    try {
+                        const res = await fetch(`/api/${typeMap[typeKey]}/submit-rating`, {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ [idMap[typeKey] || idMap.default]: this.activeRequest._id, rating: this.rating, review: this.review })
+                        });
+                        if (!res.ok) throw new Error('Failed to submit rating.');
+                        this.closeRatingModal(); 
+                        this.fetchData();
+                        alert('Thank you for your feedback!');
+                    } catch (error) { alert(error.message); }
+                },
+                openHelpModal() { this.isHelpModalOpen = true; },
+                closeHelpModal() { this.isHelpModalOpen = false; },
+                openBillModal(request) { this.billToView = request; this.isBillModalOpen = true; },
+                closeBillModal() { this.isBillModalOpen = false; this.billToView = null; },
+                markNotificationsAsRead() { this.unreadNotificationsCount = 0; },
+                downloadHistoryAsCSV() {
+                    const items = this.searchFilteredRequests;
+                    if (items.length === 0) { alert('No history data to download.'); return; }
+                    const headers = ['Date', 'Type', 'Details', 'Status', 'Resolution Note', 'Rating (1-5)'];
+                    const csvRows = [headers.join(',')];
+                    const escapeCSV = (str) => { if (str === null || str === undefined) return ''; const s = String(str); if (s.includes(',')) return `"${s.replace(/"/g, '""')}"`; return s; };
+                    for (const req of items) {
+                        const row = [ escapeCSV(this.formatDate(req.createdAt, true)), escapeCSV(req.type), escapeCSV(this.getRequestBody(req)), escapeCSV(req.status), escapeCSV(this.getResolutionNote(req)), escapeCSV(req.rating || 'N/A') ];
+                        csvRows.push(row.join(','));
+                    }
+                    const csvString = csvRows.join('\n');
+                    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement("a");
+                    const url = URL.createObjectURL(blob);
+                    link.setAttribute("href", url);
+                    link.setAttribute("download", `jc_nexus_hub_history_${new Date().toISOString().split('T')[0]}.csv`);
+                    link.style.visibility = 'hidden';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                },
+                isActive(page) { if (this.currentPage === page) return 'bg-indigo-100 text-indigo-600'; return 'hover:bg-slate-100'; },
+                formatDate(d, includeTime = false) { if (!d) return 'N/A'; const options = { day: 'numeric', month: 'short' }; if(new Date(d).getFullYear() !== new Date().getFullYear()) options.year = 'numeric'; if (includeTime) { options.hour = '2-digit'; options.minute = '2-digit'; } return new Date(d).toLocaleDateString('en-IN', options); },
+                formatRating(rating) { if (!rating || rating === 0) { return 'N/A'; } let stars = ''; for (let i = 1; i <= 5; i++) { stars += i <= rating ? '★' : '☆'; } return stars; },
+                getStatusClass(status) { return `status-${(status || '').toLowerCase().replace(/ /g, '-')}`; },
+                getRequestType(key) { return { ticket: 'IT Ticket', cleaning: 'Cleaning', beverage: 'Beverage', food: 'Food', store: 'Store' }[key] || 'Request'; },
+                isComplete(status) { return ['Resolved', 'Completed', 'Delivered'].includes(status); },
+                getRequestIcon(type, status) { const map = { 'IT Ticket': 'fa-solid fa-desktop', 'Cleaning': 'fa-solid fa-soap', 'Beverage': 'fa-solid fa-mug-hot', 'Food': 'fa-solid fa-utensils', 'Store': 'fa-solid fa-box-archive' }; const color = this.isComplete(status) ? 'text-green-500' : 'text-slate-500'; return `${map[type] || 'fa-solid fa-file-alt'} ${color}`; },
+                summarizeItems(items) { if (!items || items.length === 0) return 'N/A'; const summary = items.map(i => `${i.name} (x${i.quantity})`).join(', '); return summary.length > 30 ? summary.substring(0, 30) + '...' : summary; },
+                getRequestBody(req) {
+                    switch(req.typeKey) {
+                        case 'ticket': return req.mainIssue;
+                        case 'cleaning': return req.cleaningType;
+                        case 'beverage': return req.beverage;
+                        case 'food': return this.summarizeItems(req.items);
+                        case 'store': return req.itemName ? `${req.itemName} (x${req.quantity})` : 'N/A';
+                        default: return 'Request';
+                    }
+                },
+                getResolutionNote(req) { return req.resolutionNote || req.closingNote || req.dispatchNote || 'N/A'; },
+                getRequestLocation(req) { if (req.floorNumber && (req.tableNumber || req.deskNumber)) { return `${req.floorNumber}, ${req.tableNumber || req.deskNumber}`; } return 'N/A'; },
+                updateChart() {
+                    this.$nextTick(() => {
+                        if (this.chartInstance) this.chartInstance.destroy();
+                        const ctx = document.getElementById('requestsChart')?.getContext('2d');
+                        if (!ctx) return;
+                        const counts = this.allRequests.reduce((acc, req) => { acc[req.type] = (acc[req.type] || 0) + 1; return acc; }, {});
+                        this.chartInstance = new Chart(ctx, {
+                            type: 'doughnut',
+                            data: { labels: Object.keys(counts), datasets: [{ data: Object.values(counts), backgroundColor: ['#4f46e5', '#3b82f6', '#10b981', '#f59e0b', '#6b7280'], borderColor: '#fff', borderWidth: 4, }] },
+                            options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'bottom', labels: { padding: 20 } } } }
+                        });
+                    });
+                }
+            };
+        }
+        function liveClock() {
+            return {
+                time: '', date: '',
+                start() { this.updateTime(); setInterval(() => { this.updateTime(); }, 1000); },
+                updateTime() {
+                    const now = new Date();
+                    this.time = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+                    this.date = now.toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' });
+                }
+            };
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pre-Order Food - JC Nexus Hub</title>
+    
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
+
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes animateGradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes slideOut {
+            to { transform: translateX(100%); opacity: 0; }
+        }
+
+        .font-times {
+            font-family: 'Times New Roman', Times, serif;
+        }
+
+        body {
+            background: linear-gradient(-45deg, #eef2ff, #dbeafe, #c7d2fe, #a5b4fc);
+            background-size: 400% 400%;
+            animation: animateGradient 15s ease infinite;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+        .input-underline {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background-color: #4f46e5; /* Indigo-600 */
+            transform: scaleX(0);
+            transform-origin: center;
+            transition: transform 0.3s ease-out;
+        }
+        input:focus + .input-underline,
+        select:focus + .input-underline,
+        textarea:focus + .input-underline {
+            transform: scaleX(1);
+        }
+
+        .toast.show { animation: slideIn 0.5s ease-out forwards; }
+        .toast.hide { animation: slideOut 0.5s ease-in forwards; }
+
+        #menu-container::-webkit-scrollbar { width: 6px; }
+        #menu-container::-webkit-scrollbar-track { background: #e0e7ff; }
+        #menu-container::-webkit-scrollbar-thumb { background: #a5b4fc; border-radius: 3px; }
+        #menu-container::-webkit-scrollbar-thumb:hover { background: #818cf8; }
+    </style>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Poppins', 'sans-serif'],
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s ease-out forwards',
+                    },
+                    boxShadow: {
+                        'pro': '0 25px 50px -12px rgb(0 0 0 / 0.1), 0 10px 10px -5px rgb(0 0 0 / 0.04)',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+
+<body class="antialiased">
+    <div class="flex min-h-screen items-center justify-center p-4 md:p-6">
+        <div class="w-full max-w-6xl">
+            
+            <div class="text-center mb-8 animate-fade-in" style="animation-delay: 100ms;">
+                <img src="logo.png" alt="JC Nexus Hub Logo" class="h-20 md:h-24 w-auto mx-auto" />
+                <h1 class="mt-2 text-2xl md:text-3xl font-bold tracking-wide text-slate-800 font-times">JC NEXUS HUB</h1>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+
+                <div class="lg:col-span-2 bg-white/70 backdrop-blur-xl p-8 rounded-2xl shadow-pro animate-fade-in" style="animation-delay: 200ms;">
+                    <h2 class="text-2xl font-bold text-slate-900">Pre-Order Food</h2>
+                      <p class="mt-2 text-sm text-slate-600 leading-relaxed">
+                          Beat the queue! Pre-order your lunch or snacks from our extensive menu.
+                          <br><br>
+                          <strong class="text-slate-700">Important:</strong> All meals must be collected and consumed within the canteen area only. Food is not permitted at desks.
+                      </p>
+                
+                    <div class="mt-6 space-y-4">
+                        <div class="flex items-start gap-4 p-4 bg-green-50/70 border border-green-200 rounded-xl">
+                            <div class="flex-shrink-0 text-green-600 text-xl pt-1"><i class="fas fa-leaf"></i></div>
+                            <div>
+                                <h3 class="font-semibold text-slate-800">Fresh Ingredients</h3>
+                                <p class="text-sm text-slate-600">Prepared with fresh, locally sourced ingredients every day.</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-4 p-4 bg-yellow-50/70 border border-yellow-200 rounded-xl">
+                            <div class="flex-shrink-0 text-yellow-600 text-xl pt-1"><i class="fas fa-concierge-bell"></i></div>
+                            <div>
+                                <h3 class="font-semibold text-slate-800">Custom Orders</h3>
+                                <p class="text-sm text-slate-600">Request a custom item or add dietary notes to your order below.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-3 bg-white p-8 rounded-2xl shadow-pro animate-fade-in" style="animation-delay: 300ms;">
+                    <form id="foodOrderForm" class="flex flex-col h-full">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-xl font-bold text-slate-900">Today's Menu</h2>
+                            <span class="text-xs font-medium text-green-700 bg-green-100 py-1 px-3 rounded-full"><i class="fas fa-utensils mr-1"></i> Order Now</span>
+                        </div>
+
+                        <div id="menu-container" class="flex-grow space-y-6 overflow-y-auto pr-3 -mr-3" style="max-height: 400px;">
+                            <div>
+                                <h3 class="text-lg font-semibold text-slate-800 border-b-2 border-slate-200 pb-2 mb-3">Thali & Combos</h3>
+                                <div class="space-y-4">
+                                    <div class="menu-item flex items-center gap-4" data-price="160"><div class="flex-grow"><p class="font-semibold text-slate-700">Executive Veg Thali</p><p class="text-sm text-slate-500">Dal, Sabzi, Roti, Rice, Salad</p></div><div class="flex items-center gap-3"><span class="font-semibold text-slate-800">₹160</span><input type="number" name="Executive Veg Thali" class="quantity-input w-16 text-center border-slate-300 rounded-md" value="0" min="0"></div></div>
+                                    <div class="menu-item flex items-center gap-4" data-price="150"><div class="flex-grow"><p class="font-semibold text-slate-700">Paneer Butter Masala Combo</p><p class="text-sm text-slate-500">Served with 2 Naan or Rice</p></div><div class="flex items-center gap-3"><span class="font-semibold text-slate-800">₹150</span><input type="number" name="Paneer Butter Masala Combo" class="quantity-input w-16 text-center border-slate-300 rounded-md" value="0" min="0"></div></div>
+                                    <div class="menu-item flex items-center gap-4" data-price="170"><div class="flex-grow"><p class="font-semibold text-slate-700">Dal Makhani Combo</p><p class="text-sm text-slate-500">Served with 2 Laccha Paratha</p></div><div class="flex items-center gap-3"><span class="font-semibold text-slate-800">₹170</span><input type="number" name="Dal Makhani Combo" class="quantity-input w-16 text-center border-slate-300 rounded-md" value="0" min="0"></div></div>
+                                    <div class="menu-item flex items-center gap-4" data-price="160"><div class="flex-grow"><p class="font-semibold text-slate-700">Kadai Paneer Combo</p><p class="text-sm text-slate-500">Served with 2 Tandoori Roti</p></div><div class="flex items-center gap-3"><span class="font-semibold text-slate-800">₹160</span><input type="number" name="Kadai Paneer Combo" class="quantity-input w-16 text-center border-slate-300 rounded-md" value="0" min="0"></div></div>
+                                    <div class="menu-item flex items-center gap-4" data-price="130"><div class="flex-grow"><p class="font-semibold text-slate-700">Rajma Chawal Bowl</p></div><div class="flex items-center gap-3"><span class="font-semibold text-slate-800">₹130</span><input type="number" name="Rajma Chawal Bowl" class="quantity-input w-16 text-center border-slate-300 rounded-md" value="0" min="0"></div></div>
+                                    <div class="menu-item flex items-center gap-4" data-price="140"><div class="flex-grow"><p class="font-semibold text-slate-700">Chole Bhature (2 pcs)</p></div><div class="flex items-center gap-3"><span class="font-semibold text-slate-800">₹140</span><input type="number" name="Chole Bhature" class="quantity-input w-16 text-center border-slate-300 rounded-md" value="0" min="0"></div></div>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <h3 class="text-lg font-semibold text-slate-800 border-b-2 border-slate-200 pb-2 mb-3 mt-6">Chinese Specials</h3>
+                                <div class="space-y-4">
+                                    <div class="menu-item flex items-center gap-4" data-price="140"><div class="flex-grow"><p class="font-semibold text-slate-700">Veg Hakka Noodles</p></div><div class="flex items-center gap-3"><span class="font-semibold text-slate-800">₹140</span><input type="number" name="Veg Hakka Noodles" class="quantity-input w-16 text-center border-slate-300 rounded-md" value="0" min="0"></div></div>
+                                    <div class="menu-item flex items-center gap-4" data-price="160"><div class="flex-grow"><p class="font-semibold text-slate-700">Veg Manchurian w/ Fried Rice</p></div><div class="flex items-center gap-3"><span class="font-semibold text-slate-800">₹160</span><input type="number" name="Veg Manchurian w/ Fried Rice" class="quantity-input w-16 text-center border-slate-300 rounded-md" value="0" min="0"></div></div>
+                                    <div class="menu-item flex items-center gap-4" data-price="170"><div class="flex-grow"><p class="font-semibold text-slate-700">Chilli Paneer Gravy w/ Fried Rice</p></div><div class="flex items-center gap-3"><span class="font-semibold text-slate-800">₹170</span><input type="number" name="Chilli Paneer Gravy w/ Fried Rice" class="quantity-input w-16 text-center border-slate-300 rounded-md" value="0" min="0"></div></div>
+                                    <div class="menu-item flex items-center gap-4" data-price="110"><div class="flex-grow"><p class="font-semibold text-slate-700">Veg Spring Roll (6 pcs)</p></div><div class="flex items-center gap-3"><span class="font-semibold text-slate-800">₹110</span><input type="number" name="Veg Spring Roll" class="quantity-input w-16 text-center border-slate-300 rounded-md" value="0" min="0"></div></div>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <h3 class="text-lg font-semibold text-slate-800 border-b-2 border-slate-200 pb-2 mb-3 mt-6">Pizza & Continental</h3>
+                                <div class="space-y-4">
+                                    <div class="menu-item flex items-center gap-4" data-price="120"><div class="flex-grow"><p class="font-semibold text-slate-700">Classic Veg Burger</p></div><div class="flex items-center gap-3"><span class="font-semibold text-slate-800">₹120</span><input type="number" name="Classic Veg Burger" class="quantity-input w-16 text-center border-slate-300 rounded-md" value="0" min="0"></div></div>
+                                    <div class="menu-item flex items-center gap-4" data-price="140"><div class="flex-grow"><p class="font-semibold text-slate-700">Paneer Tikka Sandwich</p></div><div class="flex items-center gap-3"><span class="font-semibold text-slate-800">₹140</span><input type="number" name="Paneer Tikka Sandwich" class="quantity-input w-16 text-center border-slate-300 rounded-md" value="0" min="0"></div></div>
+                                    <div class="menu-item flex items-center gap-4" data-price="190"><div class="flex-grow"><p class="font-semibold text-slate-700">Margherita Pizza (8")</p></div><div class="flex items-center gap-3"><span class="font-semibold text-slate-800">₹190</span><input type="number" name="Margherita Pizza" class="quantity-input w-16 text-center border-slate-300 rounded-md" value="0" min="0"></div></div>
+                                    <div class="menu-item flex items-center gap-4" data-price="230"><div class="flex-grow"><p class="font-semibold text-slate-700">Veggie Delight Pizza (8")</p></div><div class="flex items-center gap-3"><span class="font-semibold text-slate-800">₹230</span><input type="number" name="Veggie Delight Pizza" class="quantity-input w-16 text-center border-slate-300 rounded-md" value="0" min="0"></div></div>
+                                    <div class="menu-item flex items-center gap-4" data-price="180"><div class="flex-grow"><p class="font-semibold text-slate-700">White Sauce Pasta (Veg)</p></div><div class="flex items-center gap-3"><span class="font-semibold text-slate-800">₹180</span><input type="number" name="White Sauce Pasta (Veg)" class="quantity-input w-16 text-center border-slate-300 rounded-md" value="0" min="0"></div></div>
+                                    <div class="menu-item flex items-center gap-4" data-price="170"><div class="flex-grow"><p class="font-semibold text-slate-700">Red Sauce Pasta (Veg)</p></div><div class="flex items-center gap-3"><span class="font-semibold text-slate-800">₹170</span><input type="number" name="Red Sauce Pasta (Veg)" class="quantity-input w-16 text-center border-slate-300 rounded-md" value="0" min="0"></div></div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h3 class="text-lg font-semibold text-slate-800 border-b-2 border-slate-200 pb-2 mb-3 mt-6">All-Day Snacks</h3>
+                                <div class="space-y-4">
+                                    <div class="menu-item flex items-center gap-4" data-price="100"><div class="flex-grow"><p class="font-semibold text-slate-700">Pav Bhaji</p></div><div class="flex items-center gap-3"><span class="font-semibold text-slate-800">₹100</span><input type="number" name="Pav Bhaji" class="quantity-input w-16 text-center border-slate-300 rounded-md" value="0" min="0"></div></div>
+                                    <div class="menu-item flex items-center gap-4" data-price="110"><div class="flex-grow"><p class="font-semibold text-slate-700">Masala Dosa</p></div><div class="flex items-center gap-3"><span class="font-semibold text-slate-800">₹110</span><input type="number" name="Masala Dosa" class="quantity-input w-16 text-center border-slate-300 rounded-md" value="0" min="0"></div></div>
+                                    <div class="menu-item flex items-center gap-4" data-price="90"><div class="flex-grow"><p class="font-semibold text-slate-700">Idli Sambar (2 pcs)</p></div><div class="flex items-center gap-3"><span class="font-semibold text-slate-800">₹90</span><input type="number" name="Idli Sambar" class="quantity-input w-16 text-center border-slate-300 rounded-md" value="0" min="0"></div></div>
+                                    <div class="menu-item flex items-center gap-4" data-price="50"><div class="flex-grow"><p class="font-semibold text-slate-700">Samosa Chaat</p></div><div class="flex items-center gap-3"><span class="font-semibold text-slate-800">₹50</span><input type="number" name="Samosa Chaat" class="quantity-input w-16 text-center border-slate-300 rounded-md" value="0" min="0"></div></div>
+                                    <div class="menu-item flex items-center gap-4" data-price="60"><div class="flex-grow"><p class="font-semibold text-slate-700">Aloo Tikki Chaat</p></div><div class="flex items-center gap-3"><span class="font-semibold text-slate-800">₹60</span><input type="number" name="Aloo Tikki Chaat" class="quantity-input w-16 text-center border-slate-300 rounded-md" value="0" min="0"></div></div>
+                                    <div class="menu-item flex items-center gap-4" data-price="70"><div class="flex-grow"><p class="font-semibold text-slate-700">Vada Pav (2 pcs)</p></div><div class="flex items-center gap-3"><span class="font-semibold text-slate-800">₹70</span><input type="number" name="Vada Pav" class="quantity-input w-16 text-center border-slate-300 rounded-md" value="0" min="0"></div></div>
+                                    <div class="menu-item flex items-center gap-4" data-price="80"><div class="flex-grow"><p class="font-semibold text-slate-700">French Fries</p></div><div class="flex items-center gap-3"><span class="font-semibold text-slate-800">₹80</span><input type="number" name="French Fries" class="quantity-input w-16 text-center border-slate-300 rounded-md" value="0" min="0"></div></div>
+                                    <div class="menu-item flex items-center gap-4" data-price="45"><div class="flex-grow"><p class="font-semibold text-slate-700">Bread Pakoda (2 pcs)</p></div><div class="flex items-center gap-3"><span class="font-semibold text-slate-800">₹45</span><input type="number" name="Bread Pakoda" class="quantity-input w-16 text-center border-slate-300 rounded-md" value="0" min="0"></div></div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h3 class="text-lg font-semibold text-slate-800 border-b-2 border-slate-200 pb-2 mb-3 mt-6">Special Requests</h3>
+                                <div class="input-wrapper">
+                                   <textarea id="customFoodRequest" name="customFoodRequest" placeholder="Request an item not on the menu..." class="block w-full border-0 border-b-2 border-slate-200 bg-slate-50 px-2 py-2 h-20 focus:ring-0 focus:border-indigo-600 transition resize-none"></textarea>
+                                   <span class="input-underline"></span>
+                                </div>
+                                <p class="text-xs text-slate-500 mt-1">Note: Price for custom items will be confirmed separately.</p>
+                            </div>
+                        </div>
+
+                        <div class="mt-6 pt-4 border-t-2 border-slate-200">
+                             <div class="input-group mb-4">
+                                <label class="text-sm font-medium text-slate-700 mb-2 block">Time Preference</label>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+                                    <label class="inline-flex items-center"><input type="radio" name="timePreference" value="Instant" class="form-radio text-indigo-600 focus:ring-indigo-500" checked><span class="ml-2 text-slate-700">Instant</span></label>
+                                    <label class="inline-flex items-center"><input type="radio" name="timePreference" value="Scheduled" class="form-radio text-indigo-600 focus:ring-indigo-500"><span class="ml-2 text-slate-700">Schedule Time</span></label>
+                                    <label class="inline-flex items-center"><input type="radio" name="timePreference" value="Lunch Break" class="form-radio text-indigo-600 focus:ring-indigo-500"><span class="ml-2 text-slate-700">Lunch <span class="ml-1 text-xs text-slate-500">(1-2 PM)</span></span></label>
+                                    <label class="inline-flex items-center"><input type="radio" name="timePreference" value="Snack Break" class="form-radio text-indigo-600 focus:ring-indigo-500"><span class="ml-2 text-slate-700">Snacks <span class="ml-1 text-xs text-slate-500">(4:30-5 PM)</span></span></label>
+                                </div>
+                            </div>
+                            
+                            <div id="scheduledTimeWrapper" class="hidden mb-4">
+                                <label for="deliveryTime" class="text-sm font-medium text-slate-700">Select Delivery Time</label>
+                                <div class="input-wrapper mt-1">
+                                    <select id="deliveryTime" name="deliveryTime" class="block w-full border-0 border-b-2 border-slate-200 bg-slate-50 px-2 py-2.5 focus:ring-0 focus:border-indigo-600 transition">
+                                        <option value="" disabled selected>Select a 15-minute slot...</option>
+                                    </select>
+                                    <span class="input-underline"></span>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-4">
+                                 <label for="dietaryComments" class="text-sm font-medium text-slate-700">Dietary Comments (Optional)</label>
+                                <div class="input-wrapper mt-1">
+                                   <textarea id="dietaryComments" name="dietaryComments" placeholder="e.g., less spicy, salt-free, no onion..." class="block w-full border-0 border-b-2 border-slate-200 bg-slate-50 px-2 py-2 h-16 focus:ring-0 focus:border-indigo-600 transition resize-none"></textarea>
+                                   <span class="input-underline"></span>
+                                </div>
+                            </div>
+
+                            <div class="input-group mb-4">
+                                <label class="text-sm font-medium text-slate-700 mb-2 block">Payment Method</label>
+                                <div class="flex flex-wrap gap-4 mt-1">
+                                    <label class="inline-flex items-center"><input type="radio" name="paymentMethod" value="Cash" class="form-radio text-indigo-600 focus:ring-indigo-500" checked><span class="ml-2 text-slate-700">Pay by Cash</span></label>
+                                    <label class="inline-flex items-center"><input type="radio" name="paymentMethod" value="Deduct from Salary" class="form-radio text-indigo-600 focus:ring-indigo-500"><span class="ml-2 text-slate-700">Deduct from Salary</span></label>
+                                </div>
+                            </div>
+
+                            <div id="message" aria-live="polite" class="text-center text-sm font-medium h-5 mb-2"></div>
+
+                            <div class="flex items-center justify-between gap-4">
+                                <div class="text-lg font-bold text-slate-800">Total: <span id="total-price">₹0</span></div>
+                                <button type="button" id="showSummaryButton" class="group relative flex justify-center items-center py-3 px-6 border border-transparent text-sm font-semibold rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-300 ease-in-out shadow-md hover:shadow-lg">
+                                    Place Order
+                                </button>
+                                <a href="/employee-dashboard" class="flex-shrink-0 text-sm font-medium text-slate-600 hover:text-indigo-600 transition">Dashboard</a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="mt-8 text-center animate-fade-in" style="animation-delay: 400ms;">
+                <p class="text-xs text-slate-600">&copy; JC Eletronica pvt ltd. | All rights reserved.</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="orderSummaryModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 hidden animate-fade-in">
+        <div class="bg-white w-full max-w-md p-6 rounded-xl shadow-pro">
+            <div class="flex justify-between items-center border-b pb-3 mb-4">
+                <h3 class="text-lg font-semibold text-slate-800">Confirm Your Order</h3>
+                <button id="closeModalButton" class="text-slate-500 hover:text-slate-800 text-2xl">&times;</button>
+            </div>
+            <div id="summaryContent" class="space-y-2 text-sm max-h-60 overflow-y-auto"></div>
+            <div class="mt-4 pt-4 border-t">
+                <div class="flex justify-between font-semibold text-slate-700"><span >Payment Method:</span><span id="summaryPayment"></span></div>
+                <div class="flex justify-between font-semibold text-slate-700"><span>Delivery:</span><span id="summaryTime"></span></div>
+                <div class="flex justify-between text-xl font-bold text-slate-900 mt-2"><span>Total Bill:</span><span id="summaryTotal"></span></div>
+            </div>
+            <div class="flex items-center gap-4 mt-6">
+                <button id="cancelOrderButton" class="w-full py-2 px-4 rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300">Cancel</button>
+                <button id="confirmOrderButton" class="group relative w-full flex justify-center items-center py-2 px-4 border border-transparent text-sm font-semibold rounded-lg text-white bg-green-600 hover:bg-green-700 disabled:opacity-75">
+                    <span class="button-text">Confirm & Place Order</span>
+                    <span class="button-spinner absolute hidden"><svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="fixed bottom-5 right-5 z-50 flex items-center gap-3 p-4 rounded-lg shadow-lg text-white opacity-0 translate-x-full transition-all duration-500">
+        <span id="toast-icon"></span>
+        <p id="toast-message" class="text-sm font-medium"></p>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const foodOrderForm = document.getElementById('foodOrderForm');
+            const messageDiv = document.getElementById('message');
+            const totalPriceEl = document.getElementById('total-price');
+            const menuItems = document.querySelectorAll('.menu-item');
+            const timePreferenceRadios = document.querySelectorAll('input[name="timePreference"]');
+            const scheduledTimeWrapper = document.getElementById('scheduledTimeWrapper');
+            const deliveryTimeSelect = document.getElementById('deliveryTime');
+            const showSummaryButton = document.getElementById('showSummaryButton');
+            const modal = document.getElementById('orderSummaryModal');
+            const closeModalButton = document.getElementById('closeModalButton');
+            const cancelOrderButton = document.getElementById('cancelOrderButton');
+            const confirmOrderButton = document.getElementById('confirmOrderButton');
+            const summaryContent = document.getElementById('summaryContent');
+            const summaryPayment = document.getElementById('summaryPayment');
+            const summaryTime = document.getElementById('summaryTime');
+            const summaryTotal = document.getElementById('summaryTotal');
+            
+            function populateTimeSlots() {
+                for (let h = 9; h <= 17; h++) {
+                    for (let m = 0; m < 60; m += 15) {
+                        if (h === 17 && m > 0) continue;
+                        const hour12 = (h % 12) || 12;
+                        const period = h < 12 ? 'AM' : 'PM';
+                        const timeString = `${String(hour12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${period}`;
+                        const valueString = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                        const option = document.createElement('option');
+                        option.value = valueString;
+                        option.textContent = timeString;
+                        deliveryTimeSelect.appendChild(option);
+                    }
+                }
+            }
+            populateTimeSlots();
+            
+            function calculateTotal() {
+                let total = 0;
+                menuItems.forEach(item => {
+                    const price = parseFloat(item.dataset.price);
+                    const quantity = parseInt(item.querySelector('.quantity-input').value, 10);
+                    total += price * quantity;
+                });
+                totalPriceEl.textContent = `₹${total.toFixed(0)}`;
+            }
+            calculateTotal();
+            menuItems.forEach(item => item.querySelector('.quantity-input').addEventListener('input', calculateTotal));
+
+            timePreferenceRadios.forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    const isScheduled = e.target.value === 'Scheduled';
+                    scheduledTimeWrapper.classList.toggle('hidden', !isScheduled);
+                    deliveryTimeSelect.required = isScheduled;
+                });
+            });
+            
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toast-message');
+            const toastIcon = document.getElementById('toast-icon');
+            let toastTimeout;
+            function showToast(message, type = 'error') {
+                clearTimeout(toastTimeout);
+                toast.classList.remove('bg-red-600', 'bg-green-600', 'hide');
+                toast.classList.add('show');
+                if (type === 'success') {
+                    toast.classList.add('bg-green-600');
+                    toastIcon.innerHTML = `<i class="fas fa-check-circle"></i>`;
+                } else {
+                    toast.classList.add('bg-red-600');
+                    toastIcon.innerHTML = `<i class="fas fa-exclamation-circle"></i>`;
+                }
+                toastMessage.textContent = message;
+                toastTimeout = setTimeout(() => {
+                    toast.classList.remove('show');
+                    toast.classList.add('hide');
+                }, 3000);
+            }
+
+            function getOrderDetails() {
+                const formData = new FormData(foodOrderForm);
+                const orderDetails = {
+                    timePreference: formData.get('timePreference'),
+                    deliveryTime: formData.get('deliveryTime'),
+                    paymentMethod: formData.get('paymentMethod'),
+                    instructions: formData.get('dietaryComments'), 
+                    customFoodRequest: formData.get('customFoodRequest'),
+                    items: [],
+                    totalPrice: totalPriceEl.textContent
+                };
+                let hasItems = false;
+                menuItems.forEach(item => {
+                    const quantity = parseInt(item.querySelector('.quantity-input').value, 10);
+                    if (quantity > 0) {
+                        hasItems = true;
+                        orderDetails.items.push({ name: item.querySelector('.font-semibold').textContent, quantity: quantity, price: item.dataset.price });
+                    }
+                });
+                orderDetails.hasItems = hasItems;
+                return orderDetails;
+            }
+
+            showSummaryButton.addEventListener('click', () => {
+                messageDiv.textContent = '';
+                const orderDetails = getOrderDetails();
+
+                if (!orderDetails.timePreference || !orderDetails.paymentMethod) { showToast('Please select time and payment options.', 'error'); return; }
+                if (orderDetails.timePreference === 'Scheduled' && !orderDetails.deliveryTime) { showToast('Please select a delivery time for your scheduled order.', 'error'); return; }
+                if (!orderDetails.hasItems && !orderDetails.customFoodRequest) { showToast('Please select at least one item or enter a custom request.', 'error'); return; }
+                
+                summaryContent.innerHTML = ''; // Clear previous summary
+                if(orderDetails.hasItems) {
+                    orderDetails.items.forEach(item => {
+                        const itemEl = document.createElement('div');
+                        itemEl.className = 'flex justify-between text-slate-600';
+                        itemEl.innerHTML = `<span>${item.quantity} x ${item.name}</span><span>₹${(item.quantity * item.price).toFixed(0)}</span>`;
+                        summaryContent.appendChild(itemEl);
+                    });
+                }
+                if(orderDetails.customFoodRequest) {
+                    const customEl = document.createElement('div');
+                    customEl.className = 'pt-2 mt-2 border-t';
+                    customEl.innerHTML = `<p class="font-semibold text-slate-700">Custom Request:</p><p class="text-slate-600 text-xs">${orderDetails.customFoodRequest}</p>`;
+                    summaryContent.appendChild(customEl);
+                }
+                 if(orderDetails.instructions) {
+                    const dietEl = document.createElement('div');
+                    dietEl.className = 'pt-2 mt-2 border-t';
+                    dietEl.innerHTML = `<p class="font-semibold text-slate-700">Dietary Notes:</p><p class="text-slate-600 text-xs">${orderDetails.instructions}</p>`;
+                    summaryContent.appendChild(dietEl);
+                }
+
+                summaryPayment.textContent = orderDetails.paymentMethod;
+                summaryTime.textContent = orderDetails.timePreference === 'Scheduled' ? deliveryTimeSelect.options[deliveryTimeSelect.selectedIndex].text : orderDetails.timePreference;
+                summaryTotal.textContent = orderDetails.totalPrice;
+
+                modal.classList.remove('hidden');
+            });
+
+            closeModalButton.addEventListener('click', () => modal.classList.add('hidden'));
+            cancelOrderButton.addEventListener('click', () => modal.classList.add('hidden'));
+
+            confirmOrderButton.addEventListener('click', async () => {
+                const orderDetails = getOrderDetails();
+                const buttonText = confirmOrderButton.querySelector('.button-text');
+                const buttonSpinner = confirmOrderButton.querySelector('.button-spinner');
+
+                buttonText.classList.add('opacity-0');
+                buttonSpinner.classList.remove('hidden');
+                confirmOrderButton.disabled = true;
+
+                try {
+                    const response = await fetch('/api/food/pre-order', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(orderDetails),
+                    });
+                    if (!response.ok) { throw new Error('Order placement failed.'); }
+                    
+                    modal.classList.add('hidden');
+                    showToast('Order placed successfully!', 'success');
+                    setTimeout(() => { window.location.href = '/employee-dashboard'; }, 1500);
+                } catch (error) {
+                    modal.classList.add('hidden');
+                    showToast(error.message || 'An unexpected error occurred.', 'error');
+                } finally {
+                    buttonText.classList.remove('opacity-0');
+                    buttonSpinner.classList.add('hidden');
+                    confirmOrderButton.disabled = false;
+                }
+            });
+        });
+    </script>
+</body>
+</html>

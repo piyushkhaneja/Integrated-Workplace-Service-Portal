@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cleaning Dashboard - JC NEXUS HUB</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+
+    <style>
+        body { font-family: 'Poppins', sans-serif; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #a5b4fc; border-radius: 10px; }
+        .sidebar-collapsed .nav-text, .sidebar-collapsed .logo-text, .sidebar-collapsed .profile-text, .sidebar-collapsed .nav-divider { display: none; }
+        .sidebar-collapsed .nav-item { justify-content: center; }
+        .sidebar-collapsed .logo-container { justify-content: center; padding-left: 0; padding-right: 0;}
+        [x-cloak] { display: none !important; }
+        .loading-spinner { border-top-color: #4338ca; animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .status-badge { padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.8rem; font-weight: 600; text-transform: capitalize; }
+        .status-pending { background-color: #fef9c3; color: #ca8a04; }
+        .status-in-progress { background-color: #cffafe; color: #0891b2; }
+        .status-completed { background-color: #dcfce7; color: #16a34a; }
+        .status-cancelled { background-color: #fee2e2; color: #dc2626; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 antialiased">
+
+    <div x-data="cleaningDashboardApp()" x-init="initApp()" class="flex h-screen bg-slate-100">
+        
+        <aside 
+            :class="sidebarOpen ? 'w-72' : 'w-24 sidebar-collapsed'"
+            class="bg-white text-slate-700 flex flex-col transition-all duration-300 ease-in-out shadow-lg print:hidden">
+            
+            <div class="flex items-center h-20 px-6 border-b border-slate-200 logo-container transition-all duration-300">
+                <img src="/logo.png" alt="JC NEXUS Hub Logo" class="h-10 w-auto flex-shrink-0 rounded-full">
+                <span class="ml-4 text-xl font-bold logo-text whitespace-nowrap">JC NEXUS HUB</span>
+            </div>
+
+            <nav class="flex-1 px-5 py-8 space-y-3 overflow-y-auto">
+                <a href="#" @click.prevent="currentPage = 'dashboard'" :class="isActive('dashboard')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                    <i class="fa-solid fa-chart-pie h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                    <span class="ml-4 text-base font-medium nav-text">Dashboard</span>
+                </a>
+                <a href="#" @click.prevent="currentPage = 'allTasks'" :class="isActive('allTasks')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                    <i class="fa-solid fa-list-check h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                    <span class="ml-4 text-base font-medium nav-text">All Tasks</span>
+                </a>
+                <a href="#" @click.prevent="currentPage = 'completedLog'" :class="isActive('completedLog')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                    <i class="fa-solid fa-box-archive h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                    <span class="ml-4 text-base font-medium nav-text">Completed Log</span>
+                </a>
+                <div class="pt-4 nav-divider"><hr class="border-t border-slate-200"></div>
+                <a href="#" @click.prevent="currentPage = 'broadcasts'" :class="isActive('broadcasts')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                    <i class="fa-solid fa-bullhorn h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                    <span class="ml-4 text-base font-medium nav-text">Broadcasts</span>
+                </a>
+                <div class="pt-4 nav-divider"><hr class="border-t border-slate-200"></div>
+                <a href="#" @click.prevent="currentPage = 'help'" :class="isActive('help')" class="flex items-center px-4 py-3 rounded-lg nav-item transition-colors">
+                    <i class="fa-solid fa-circle-question h-7 w-7 flex-shrink-0 text-xl text-center"></i>
+                    <span class="ml-4 text-base font-medium nav-text">Help & SOPs</span>
+                </a>
+            </nav>
+
+            <div @click="openProfileModal()" class="p-4 border-t border-slate-200 mt-auto cursor-pointer hover:bg-slate-50 transition-colors">
+                <div class="flex items-center" :class="!sidebarOpen && 'justify-center'">
+                    <div class="flex-shrink-0">
+                        <template x-if="currentUser && currentUser.pic"><img :src="currentUser.pic" alt="Profile" class="h-12 w-12 rounded-full object-cover"></template>
+                        <template x-if="!currentUser || !currentUser.pic"><div class="h-12 w-12 rounded-full bg-indigo-500 text-white flex items-center justify-center text-xl font-semibold"><span x-text="currentUser ? currentUser.fullName.charAt(0) : '?'"></span></div></template>
+                    </div>
+                    <div class="ml-4 profile-text">
+                        <p class="text-base font-semibold" x-text="currentUser ? currentUser.fullName : 'Loading...'"></p>
+                        <p class="text-sm text-slate-500" x-text="currentUser ? currentUser.role : '...'"></p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <header class="flex items-center justify-between h-20 px-8 bg-white border-b border-slate-200 print:hidden">
+                 <button @click="sidebarOpen = !sidebarOpen" class="text-slate-500 hover:text-indigo-600 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"><svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg></button>
+                <div class="flex items-center space-x-4">
+                    <div x-data="liveClock()" x-init="start()" class="text-base text-slate-600 hidden md:block">
+                        <span x-text="date"></span>, <span x-text="time" class="font-medium text-slate-800"></span>
+                    </div>
+                    
+                    <div x-data="{ open: false }" class="relative">
+                        <button @click="open = !open; markNotificationsAsRead()" class="relative p-3 text-slate-500 bg-slate-100 rounded-full hover:bg-slate-200 focus:outline-none" title="Notifications">
+                            <span class="sr-only">View notifications</span>
+                            <i class="fa-solid fa-bell text-xl"></i>
+                            <span x-show="unreadNotificationsCount > 0" class="absolute top-1 right-1 h-3 w-3 bg-red-500 rounded-full border-2 border-white"></span>
+                        </button>
+                        <div x-show="open" @click.away="open = false" x-transition class="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border z-50" x-cloak>
+                            <div class="p-4 font-semibold border-b">Notifications</div>
+                            <div class="p-2 max-h-96 overflow-y-auto">
+                                <template x-for="notification in notifications" :key="notification.id">
+                                    <div class="p-3 rounded-lg hover:bg-slate-50 cursor-pointer" @click="currentPage = 'allTasks'; open = false;">
+                                        <p class="text-sm" x-html="notification.text"></p>
+                                        <p class="text-xs text-slate-500 mt-1" x-text="notification.time"></p>
+                                    </div>
+                                </template>
+                                <div x-show="notifications.length === 0" class="text-center p-8 text-slate-500 text-sm">
+                                    <i class="fa-regular fa-circle-check text-5xl text-slate-400"></i>
+                                    <p class="mt-2 font-semibold">You're all caught up!</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button @click="openHelpModal()" class="p-3 text-slate-500 bg-slate-100 rounded-full hover:bg-slate-200 focus:outline-none" title="Help & Support">
+                        <span class="sr-only">Help & Support</span>
+                        <i class="fa-solid fa-question-circle text-xl"></i>
+                    </button>
+                    
+                    <a href="/logout" class="p-3 text-slate-500 bg-slate-100 rounded-full hover:bg-slate-200 hover:text-red-600 focus:outline-none" title="Logout">
+                        <span class="sr-only">Logout</span>
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                    </a>
+                </div>
+            </header>
+            
+            <main class="flex-1 overflow-x-hidden overflow-y-auto bg-slate-100">
+                <div x-show="isLoading" class="flex items-center justify-center h-full"><div class="flex items-center space-x-3"><div class="w-10 h-10 border-4 border-indigo-200 rounded-full loading-spinner"></div><p class="text-lg font-medium">Loading Cleaning Dashboard...</p></div></div>
+
+                <div x-show="!isLoading && currentPage === 'dashboard'" x-cloak x-transition.opacity.duration.300ms class="p-8 space-y-8">
+                    <div><h1 class="text-4xl font-bold">Cleaning Dashboard</h1><p class="text-lg text-slate-600 mt-1" x-show="currentUser">Welcome back, <span x-text="currentUser.fullName ? currentUser.fullName.split(' ')[0] : 'Supervisor'"></span>. Here's the daily operations summary.</p></div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200 flex items-center justify-between"><div><p class="text-base font-medium text-slate-500">Pending Tasks</p><p class="text-4xl font-bold" x-text="stats.pending || 0"></p></div><div class="p-4 rounded-full bg-amber-100 text-amber-600"><i class="fa-solid fa-clock text-3xl"></i></div></div>
+                        <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200 flex items-center justify-between"><div><p class="text-base font-medium text-slate-500">In Progress</p><p class="text-4xl font-bold" x-text="stats.inProgress || 0"></p></div><div class="p-4 rounded-full bg-sky-100 text-sky-600"><i class="fa-solid fa-spinner text-3xl"></i></div></div>
+                        <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200 flex items-center justify-between"><div><p class="text-base font-medium text-slate-500">Completed Today</p><p class="text-4xl font-bold" x-text="stats.completedToday || 0"></p></div><div class="p-4 rounded-full bg-green-100 text-green-600"><i class="fa-solid fa-check-double text-3xl"></i></div></div>
+                    </div>
+                     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div class="lg:col-span-2 bg-white p-8 rounded-xl shadow-md border border-slate-200">
+                            <h3 class="text-2xl font-bold text-slate-900">Operations Overview</h3>
+                            <p class="mt-2 text-slate-600">This dashboard is your central command for managing all cleaning and maintenance tasks. Monitor real-time requests, track team performance through the completed log, and ensure the highest standards of cleanliness are maintained across the facility.</p>
+                            <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div class="flex items-start gap-4"><div class="flex-shrink-0 p-3 bg-indigo-100 rounded-lg text-indigo-600"><i class="fa-solid fa-eye h-6 w-6"></i></div><div><h4 class="font-semibold">Real-Time Task Tracking</h4><p class="text-sm text-slate-500">Use the 'All Tasks' page to view and update the status of pending and in-progress jobs instantly.</p></div></div>
+                                <div class="flex items-start gap-4"><div class="flex-shrink-0 p-3 bg-indigo-100 rounded-lg text-indigo-600"><i class="fa-solid fa-star-half-stroke h-6 w-6"></i></div><div><h4 class="font-semibold">Performance & Feedback</h4><p class="text-sm text-slate-500">The 'Completed Log' provides valuable insights into completion times and employee feedback ratings.</p></div></div>
+                            </div>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200">
+                            <h3 class="text-lg font-semibold mb-4">Recent Tasks</h3>
+                             <div class="space-y-4">
+                                <template x-for="task in recentTasks" :key="task._id">
+                                    <div class="flex items-start gap-3">
+                                        <div class="flex-shrink-0 pt-1">
+                                            <span class="h-6 w-6 rounded-full flex items-center justify-center text-xs" :class="getActivityIcon(task).bg"><i :class="getActivityIcon(task).icon"></i></span>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-medium leading-tight" x-text="`${task.floorNumber}, ${task.deskNumber}`"></p>
+                                            <p class="text-sm text-slate-500" x-text="task.cleaningType"></p>
+                                        </div>
+                                    </div>
+                                </template>
+                                <div x-show="recentTasks.length === 0" class="text-center py-4 text-sm text-slate-500">No active tasks.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div x-show="!isLoading && currentPage === 'allTasks'" x-cloak x-transition.opacity.duration.300ms class="p-8 space-y-6">
+                    <div><h1 class="text-4xl font-bold">All Active Tasks</h1><p class="text-lg text-slate-600 mt-1">Monitor, manage, and update all active cleaning tasks.</p></div>
+                    <div class="bg-white p-4 rounded-xl shadow-md border border-slate-200 flex flex-wrap items-center gap-4">
+                        <div class="flex flex-wrap items-center gap-2"><span class="text-base font-semibold mr-2">Filter by status:</span>
+                            <button @click="liveTaskFilter = 'all'" :class="liveTaskFilter === 'all' ? 'bg-indigo-600 text-white' : 'bg-slate-100 hover:bg-slate-200'" class="px-4 py-2 text-base font-medium rounded-md transition-colors">All</button>
+                            <button @click="liveTaskFilter = 'Pending'" :class="liveTaskFilter === 'Pending' ? 'bg-indigo-600 text-white' : 'bg-slate-100 hover:bg-slate-200'" class="px-4 py-2 text-base font-medium rounded-md transition-colors">Pending</button>
+                            <button @click="liveTaskFilter = 'In Progress'" :class="liveTaskFilter === 'In Progress' ? 'bg-indigo-600 text-white' : 'bg-slate-100 hover:bg-slate-200'" class="px-4 py-2 text-base font-medium rounded-md transition-colors">In Progress</button>
+                        </div>
+                        <div class="flex-grow"><input type="search" x-model.debounce.300ms="liveSearchQuery" placeholder="Search by name, ID, location, or task..." class="w-full text-base px-4 py-2 rounded-md bg-slate-100 border-transparent focus:ring-2 focus:ring-indigo-500 focus:border-transparent"></div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-md border border-slate-200 overflow-x-auto">
+                        <table class="w-full text-base text-left">
+                            <thead class="text-sm text-slate-700 uppercase bg-slate-100">
+                                <tr>
+                                    <th scope="col" class="px-6 py-4">Date</th>
+                                    <th scope="col" class="px-6 py-4">Employee</th>
+                                    <th scope="col" class="px-6 py-4">Location</th>
+                                    <th scope="col" class="px-6 py-4">Task</th>
+                                    <th scope="col" class="px-6 py-4">Status</th>
+                                    <th scope="col" class="px-6 py-4">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200">
+                                <template x-for="task in filteredLiveTasks" :key="task._id">
+                                    <tr class="hover:bg-slate-50 transition-colors duration-200">
+                                        <td class="px-6 py-5 whitespace-nowrap" x-text="formatDate(task.createdAt, false)"></td>
+                                        <td class="px-6 py-5"><div class="font-medium" x-text="task.requesterName"></div><div class="text-sm text-slate-500" x-text="task.employeeId"></div></td>
+                                        <td class="px-6 py-5 text-sm">
+                                            <div class="font-medium" x-text="task.floorNumber"></div>
+                                            <div class="text-slate-500" x-text="task.deskNumber"></div>
+                                        </td>
+                                        <td class="px-6 py-5 font-medium" x-text="task.cleaningType"></td>
+                                        <td class="px-6 py-5"><span class="status-badge" :class="getStatusClass(task.status)" x-text="task.status"></span></td>
+                                        <td class="px-6 py-5 whitespace-nowrap space-x-2">
+                                            <button @click="openUpdateStatusModal(task)" class="px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700">Update</button>
+                                            <button @click="openChatModal(task)" class="px-3 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700" title="Chat"><i class="fa-solid fa-comments"></i></button>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <tr x-show="filteredLiveTasks.length === 0"><td colspan="6" class="text-center py-12 text-slate-500"><div class="flex flex-col items-center"><i class="fa-solid fa-magnifying-glass text-6xl text-slate-400"></i><p class="mt-4 font-semibold text-lg">No active tasks found</p><p class="text-base">Try adjusting your filters or search query.</p></div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div x-show="!isLoading && currentPage === 'completedLog'" x-cloak x-transition.opacity.duration.300ms class="p-8 space-y-6">
+                    <div class="flex flex-wrap justify-between items-center gap-4">
+                        <div><h1 class="text-4xl font-bold">Completed Task Log</h1><p class="text-lg text-slate-600 mt-1">A complete record of all resolved or cancelled cleaning requests.</p></div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="bg-white p-6 rounded-lg shadow-md flex items-center gap-5">
+                            <i class="fas fa-check-double text-4xl text-green-500"></i>
+                            <div><h3 class="text-3xl font-bold" x-text="completedSummary.total">0</h3><p class="text-base text-slate-500">Total Completed</p></div>
+                        </div>
+                        <div class="bg-white p-6 rounded-lg shadow-md flex items-center gap-5">
+                            <i class="fas fa-clock text-4xl text-sky-500"></i>
+                            <div><h3 class="text-3xl font-bold" x-text="completedSummary.avgTime">0h 0m</h3><p class="text-base text-slate-500">Avg. Completion Time</p></div>
+                        </div>
+                        <div class="bg-white p-6 rounded-lg shadow-md flex items-center gap-5">
+                            <i class="fas fa-star text-4xl text-amber-500"></i>
+                            <div><h3 class="text-3xl font-bold" x-text="completedSummary.avgRating">N/A</h3><p class="text-base text-slate-500">Avg. Employee Rating</p></div>
+                        </div>
+                    </div>
+
+                     <div class="bg-white p-4 rounded-xl shadow-md border border-slate-200 flex items-center">
+                        <div class="flex-grow"><input type="search" x-model.debounce.300ms="completedSearchQuery" placeholder="Search archive by name, ID, location, or task..." class="w-full text-base px-4 py-2 rounded-md bg-slate-100 border-transparent focus:ring-2 focus:ring-indigo-500 focus:border-transparent"></div>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-md border border-slate-200 overflow-x-auto">
+                        <table class="w-full text-base text-left">
+                            <thead class="text-sm text-slate-700 uppercase bg-slate-100">
+                                <tr>
+                                    <th scope="col" class="px-6 py-4">Completed Date</th>
+                                    <th scope="col" class="px-6 py-4">Employee</th>
+                                    <th scope="col" class="px-6 py-4">Task</th>
+                                    <th scope="col" class="px-6 py-4">Completed By</th>
+                                    <th scope="col" class="px-6 py-4">Closing Note</th>
+                                    <th scope="col" class="px-6 py-4">Rating & Feedback</th>
+                                    <th scope="col" class="px-6 py-4">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200">
+                                <template x-for="task in filteredCompletedTasks" :key="task._id">
+                                    <tr class="hover:bg-slate-50 transition-colors duration-200">
+                                        <td class="px-6 py-5" x-text="formatDate(task.completedAt, true)"></td>
+                                        <td class="px-6 py-5"><div class="font-medium" x-text="task.requesterName"></div><div class="text-sm text-slate-500" x-text="task.employeeId"></div></td>
+                                        <td class="px-6 py-5 font-medium" x-text="task.cleaningType"></td>
+                                        <td class="px-6 py-5" x-text="task.completedBy || 'N/A'"></td>
+                                        <td class="px-6 py-5 text-sm text-slate-600" x-text="task.closingNote || 'N/A'"></td>
+                                        <td class="px-6 py-5">
+                                            <div class="flex items-center" :class="{ 'text-slate-400': !task.rating }">
+                                                <span class="text-amber-500" x-html="formatRating(task.rating)"></span>
+                                                <span x-show="task.review" class="ml-2 cursor-pointer" :title="task.review"><i class="fa-solid fa-comment-dots"></i></span>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-5 whitespace-nowrap">
+                                            <button @click="openChatModal(task)" class="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700">View Chat</button>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <tr x-show="filteredCompletedTasks.length === 0"><td colspan="7" class="text-center py-12 text-slate-500"><div class="flex flex-col items-center"><i class="fa-solid fa-box-archive text-6xl text-slate-400"></i><p class="mt-4 font-semibold text-lg">No completed tasks found</p><p class="text-base">The log is empty or your search returned no results.</p></div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div x-show="!isLoading && currentPage === 'broadcasts'" x-cloak x-transition.opacity.duration.300ms class="p-8 space-y-8">
+                    <div class="flex flex-wrap justify-between items-center gap-4">
+                        <div><h1 class="text-4xl font-bold">Manage Broadcasts</h1><p class="text-lg text-slate-600 mt-1">Create and view team-wide announcements.</p></div>
+                    </div>
+                    <div class="max-w-4xl mx-auto space-y-8">
+                        <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200"><h3 class="text-xl font-bold mb-4">Create New Broadcast</h3><form @submit.prevent="sendBroadcast"><textarea x-model="newBroadcastMessage" rows="4" placeholder="Type your announcement here..." class="w-full text-base p-3 rounded-md border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent" required></textarea><div class="flex justify-end mt-4"><button type="submit" class="px-6 py-3 text-base font-semibold text-white bg-indigo-600 rounded-md hover:bg-indigo-700">Post Announcement</button></div></form></div>
+                        <h3 class="text-2xl font-bold pt-4 border-t">Recent Broadcasts</h3>
+                        <template x-for="post in broadcasts" :key="post._id">
+                            <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200 flex items-start gap-5">
+                                <div class="flex-shrink-0"><div class="h-12 w-12 rounded-full bg-indigo-500 text-white flex items-center justify-center text-xl font-semibold"><span x-text="post.senderName.charAt(0)"></span></div></div>
+                                <div class="flex-grow">
+                                    <div class="flex items-baseline justify-between"><div><p class="font-bold text-lg" x-text="post.senderName"></p><p class="text-sm text-slate-500" x-text="post.senderRole"></p></div><p class="text-sm text-slate-400" x-text="formatDate(post.createdAt)"></p></div>
+                                    <p class="mt-3 text-base text-slate-700" x-text="post.message"></p>
+                                </div>
+                            </div>
+                        </template>
+                        <div x-show="broadcasts.length === 0" class="text-center py-12 text-slate-500"><p class="font-semibold text-lg">No Broadcasts Yet</p></div>
+                    </div>
+                </div>
+                
+                <div x-show="!isLoading && currentPage === 'help'" x-cloak x-transition.opacity.duration.300ms class="p-8 space-y-8">
+                    <div><h1 class="text-4xl font-bold">Help & SOPs</h1><p class="text-lg text-slate-600 mt-1">Standard Operating Procedures and FAQs.</p></div>
+                    <div class="pt-8">
+                        <h2 class="text-3xl font-bold mb-6">Frequently Asked Questions</h2>
+                        <div x-data="{ open: null }" class="space-y-4 max-w-4xl mx-auto">
+                           <div class="bg-white rounded-lg shadow-sm border border-slate-200">
+                                <button @click="open = open === 1 ? null : 1" class="w-full text-left p-6 flex justify-between items-center"><span class="text-lg font-semibold">How do I update a task's status?</span><i class="fa-solid fa-chevron-down transition-transform" :class="open === 1 && 'rotate-180'"></i></button>
+                                <div x-show="open === 1" x-transition class="p-6 pt-0 text-slate-600"><p>On the 'All Tasks' page, click the 'Update' button on any task. You can then change its status to 'In Progress' or 'Completed'. If you mark it as 'Completed', a field will appear for you to add a closing note.</p></div>
+                            </div>
+                            <div class="bg-white rounded-lg shadow-sm border border-slate-200">
+                                <button @click="open = open === 2 ? null : 2" class="w-full text-left p-6 flex justify-between items-center"><span class="text-lg font-semibold">What does the 'Broadcast' feature do?</span><i class="fa-solid fa-chevron-down transition-transform" :class="open === 2 && 'rotate-180'"></i></button>
+                                <div x-show="open === 2" x-transition class="p-6 pt-0 text-slate-600"><p>The Broadcasts page allows the cleaning supervisor to send out important announcements to all staff, such as changes in schedule, special cleaning requirements, or supply alerts.</p></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <div x-show="isUpdateStatusModalOpen" @keydown.escape.window="closeUpdateStatusModal()" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" x-cloak><div @click.away="closeUpdateStatusModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4" x-show="isUpdateStatusModalOpen" x-transition.scale><form @submit.prevent="submitStatusUpdate()"><div class="p-8"><h2 class="text-xl font-bold mb-2">Update Task Status</h2><p class="text-base text-slate-600 mb-4">Task: <strong x-text="taskToUpdate.cleaningType"></strong></p><div x-show="newStatus === 'Completed' || newStatus === 'Cancelled'" class="mb-4"><label for="closingNote" class="block text-sm font-medium">Closing Note (Required)</label><textarea id="closingNote" x-model="closingNoteInput" rows="3" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm" placeholder="e.g., All areas cleaned and sanitized." required></textarea></div><label for="statusSelect" class="block text-sm font-medium">New Status</label><select id="statusSelect" x-model="newStatus" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm"><option>Pending</option><option>In Progress</option><option>Completed</option><option>Cancelled</option></select></div><div class="px-6 py-4 bg-slate-50 rounded-b-2xl flex justify-end gap-3"><button @click="closeUpdateStatusModal()" type="button" class="px-5 py-2.5 text-base font-medium rounded-md shadow-sm">Cancel</button><button type="submit" class="px-5 py-2.5 text-base font-medium text-white bg-indigo-600 rounded-md">Update Status</button></div></form></div></div>
+        <div x-show="isChatModalOpen" @keydown.escape.window="closeChatModal()" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" x-cloak><div @click.away="closeChatModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4" x-show="isChatModalOpen" x-transition.scale><div class="p-6"><div class="flex justify-between items-center pb-3 border-b"><h2 class="text-xl font-bold">Chat History</h2><button @click="closeChatModal()" class="text-slate-400 hover:text-slate-600 text-2xl">&times;</button></div><div class="mt-4 mb-4 h-64 overflow-y-auto p-3 bg-slate-50 rounded-md space-y-4" x-ref="chatHistory"><template x-for="msg in chatHistory"><div class="flex" :class="msg.senderId === currentUser._id ? 'justify-end' : 'justify-start'"><div class="max-w-xs px-4 py-2 rounded-lg" :class="msg.senderId === currentUser._id ? 'bg-indigo-500 text-white' : 'bg-slate-200 text-slate-800'"><p class="text-sm font-bold" x-text="msg.senderName"></p><p class="text-sm" x-text="msg.message"></p></div></div></template></div><form @submit.prevent="sendChatMessage()"><div class="flex gap-2"><input type="text" x-model="chatMessageInput" placeholder="Type your message..." class="flex-grow w-full rounded-md bg-transparent border-slate-300 shadow-sm" autocomplete="off" required><button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md">Send</button></div></form></div></div></div>
+        <div x-show="isProfileModalOpen" @keydown.escape.window="closeProfileModal()" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" x-cloak><div @click.away="closeProfileModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-3xl mx-4" x-show="isProfileModalOpen" x-transition.scale><div class="p-8" x-show="editableUser"><h2 class="text-2xl font-bold mb-6">My Profile</h2><div class="flex flex-col md:flex-row gap-8"><div class="flex-shrink-0 text-center md:w-1/4"><img class="h-32 w-32 rounded-full object-cover mx-auto ring-4 ring-indigo-200" :src="profilePicPreviewUrl || (editableUser.pic) || 'https://placehold.co/128x128/c4b5fd/4338ca?text=' + editableUser.fullName.charAt(0)" alt="Profile Picture"><input type="file" @change="handleProfilePicChange" x-ref="profilePicInput" class="hidden" accept="image/*"><button @click="$refs.profilePicInput.click()" class="mt-4 text-base font-semibold text-indigo-600 hover:text-indigo-800">Change Picture</button></div><div class="flex-grow grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4"><div><label class="block text-sm font-medium text-slate-500">Full Name</label><input type="text" :value="editableUser.fullName" disabled class="mt-1 w-full bg-slate-100 rounded-md border-slate-300 cursor-not-allowed px-3 py-2"></div><div><label class="block text-sm font-medium text-slate-500">Employee ID</label><input type="text" :value="editableUser.employeeId" disabled class="mt-1 w-full bg-slate-100 rounded-md border-slate-300 cursor-not-allowed px-3 py-2"></div><div><label class="block text-sm font-medium text-slate-500">Email</label><input type="email" :value="editableUser.email" disabled class="mt-1 w-full bg-slate-100 rounded-md border-slate-300 cursor-not-allowed px-3 py-2"></div><div><label class="block text-sm font-medium text-slate-500">Department</label><input type="text" :value="editableUser.department" disabled class="mt-1 w-full bg-slate-100 rounded-md border-slate-300 cursor-not-allowed px-3 py-2"></div><div><label class="block text-sm font-medium text-slate-500">Role</label><input type="text" :value="editableUser.role" disabled class="mt-1 w-full bg-slate-100 rounded-md border-slate-300 cursor-not-allowed px-3 py-2"></div><div><label class="block text-sm font-medium text-slate-500">Account Status</label><input type="text" :value="editableUser.status" disabled class="mt-1 w-full bg-slate-100 rounded-md border-slate-300 cursor-not-allowed px-3 py-2"></div><div class="md:col-span-2"><label class="block text-sm font-medium text-slate-500">Joining Date</label><input type="text" :value="formatFullDate(editableUser.joiningDate)" disabled class="mt-1 w-full bg-slate-100 rounded-md border-slate-300 cursor-not-allowed px-3 py-2"></div><div class="md:col-span-2"><label for="phone" class="block text-sm font-medium">Phone Number</label><input id="phone" type="tel" x-model="editableUser.phone" class="mt-1 w-full rounded-md border-slate-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></div><div class="md:col-span-2"><label for="address" class="block text-sm font-medium">Address</label><textarea id="address" rows="2" x-model="editableUser.address" class="mt-1 w-full rounded-md border-slate-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></textarea></div></div></div><div class="mt-8 pt-5 border-t flex justify-end gap-3"><button @click="closeProfileModal()" type="button" class="px-5 py-2.5 text-base font-medium bg-white border border-slate-300 rounded-md hover:bg-slate-50">Cancel</button><button @click="saveProfileChanges()" type="button" class="px-5 py-2.5 text-base font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700">Save Changes</button></div></div></div></div>
+        <div x-show="isHelpModalOpen" @keydown.escape.window="closeHelpModal()" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" x-cloak><div @click.away="closeHelpModal()" class="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4" x-show="isHelpModalOpen" x-transition.scale><div class="p-8"><h2 class="text-2xl font-bold mb-6">Help & Support</h2><div class="space-y-6"><div class="bg-slate-50 p-4 rounded-lg flex items-start gap-4"><i class="fa-solid fa-book-open-reader text-2xl h-8 w-8 text-indigo-600 flex-shrink-0 mt-1"></i><div><h3 class="font-semibold text-lg">Visit our Help Center & SOPs</h3><p class="text-slate-600 text-sm">Find answers to frequently asked questions and view operating procedures.</p><button @click="currentPage='help'; closeHelpModal()" class="mt-2 text-sm font-semibold text-indigo-600 hover:underline">Go to Help & SOPs &rarr;</button></div></div><div><h3 class="font-semibold text-lg">Submit a Query or Feedback</h3><form @submit.prevent="alert('Thank you for your feedback!'); closeHelpModal()"><textarea rows="4" placeholder="Have a suggestion or facing an issue with the dashboard? Let us know..." class="mt-2 w-full text-base p-3 rounded-md border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent" required></textarea><div class="flex justify-end mt-4"><button type="submit" class="px-5 py-2.5 text-base font-medium text-white bg-indigo-600 rounded-md shadow-sm hover:bg-indigo-700">Submit Feedback</button></div></form></div></div></div></div></div>
+        
+    </div>
+    
+    <script>
+        const socket = io();
+
+        function cleaningDashboardApp() {
+            return {
+                sidebarOpen: true,
+                currentPage: 'dashboard',
+                isLoading: true,
+                currentUser: null, 
+                allTasks: [], 
+                stats: {}, 
+                broadcasts: [], 
+                notifications: [], 
+                unreadNotificationsCount: 0,
+                
+                liveTaskFilter: 'all', 
+                liveSearchQuery: '',
+                completedSearchQuery: '',
+                completedSummary: { total: 0, avgTime: '0h 0m', avgRating: 'N/A' },
+
+                isProfileModalOpen: false, editableUser: null, profilePicPreviewUrl: null,
+                isChatModalOpen: false, chatTask: {}, chatHistory: [], chatMessageInput: '',
+                isUpdateStatusModalOpen: false, taskToUpdate: {}, newStatus: '', closingNoteInput: '',
+                isTaskDetailsModalOpen: false, selectedTask: null,
+                newBroadcastMessage: '',
+                isHelpModalOpen: false,
+                
+                get filteredLiveTasks() {
+                    let tasks = this.allTasks.filter(t => t.status === 'Pending' || t.status === 'In Progress');
+                    if (this.liveTaskFilter !== 'all') { tasks = tasks.filter(t => t.status === this.liveTaskFilter); }
+                    if (this.liveSearchQuery.trim()) {
+                        const query = this.liveSearchQuery.toLowerCase();
+                        return tasks.filter(t => (t.floorNumber && t.floorNumber.toLowerCase().includes(query)) || (t.deskNumber && t.deskNumber.toLowerCase().includes(query)) || (t.cleaningType && t.cleaningType.toLowerCase().includes(query)) || (t.requesterName && t.requesterName.toLowerCase().includes(query)) || (t.employeeId && t.employeeId.toLowerCase().includes(query)));
+                    }
+                    return tasks;
+                },
+                get filteredCompletedTasks() {
+                    let tasks = this.allTasks.filter(t => t.status === 'Completed' || t.status === 'Cancelled');
+                    if (this.completedSearchQuery.trim()) {
+                        const query = this.completedSearchQuery.toLowerCase();
+                        return tasks.filter(t => (t.floorNumber && t.floorNumber.toLowerCase().includes(query)) || (t.deskNumber && t.deskNumber.toLowerCase().includes(query)) || (t.cleaningType && t.cleaningType.toLowerCase().includes(query)) || (t.requesterName && t.requesterName.toLowerCase().includes(query)) || (t.employeeId && t.employeeId.toLowerCase().includes(query)) || (t.completedBy && t.completedBy.toLowerCase().includes(query)));
+                    }
+                    return tasks.sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt));
+                },
+                get recentTasks() {
+                    return this.allTasks.filter(t => t.status === 'Pending' || t.status === 'In Progress').sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5);
+                },
+                
+                initApp() { this.fetchData(); this.setupSocketListeners(); },
+
+                async fetchData() {
+                    this.isLoading = true;
+                    try {
+                        const [userRes, dataRes] = await Promise.all([ fetch('/api/user-info'), fetch('/api/cleaning/dashboard-data') ]);
+                        if (!userRes.ok || !dataRes.ok) throw new Error('Failed to fetch cleaning data. Ensure the API endpoint is correct.');
+                        
+                        this.currentUser = await userRes.json();
+                        const data = await dataRes.json();
+                        
+                        this.stats = data.stats || {};
+                        this.allTasks = data.tasks || [];
+                        this.broadcasts = (data.broadcasts || []).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+                        this.completedSummary = data.completedSummary || { total: 0, avgTime: '0h 0m', avgRating: 'N/A' };
+                    } catch (error) { console.error("Cleaning Dashboard Loading Error:", error); alert(error.message); } 
+                    finally { this.isLoading = false; }
+                },
+                
+                setupSocketListeners() {
+                    const notifyAndRefresh = (data) => {
+                        this.fetchData();
+                        if (data && data.requesterName) {
+                            this.notifications.unshift({
+                                id: data._id || Date.now(),
+                                text: `New cleaning request from <strong>${data.requesterName}</strong>`,
+                                time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute:'2-digit' })
+                            });
+                            this.unreadNotificationsCount++;
+                        }
+                    };
+                    socket.on('new-cleaning', notifyAndRefresh);
+                    socket.on('cleaning-updated', () => this.fetchData());
+                    socket.on('new-broadcast', (newPost) => this.broadcasts.unshift(newPost));
+                    socket.on('chat-message', (msg) => {
+                        if (this.isChatModalOpen && this.chatTask._id === msg.requestId) {
+                            this.chatHistory.push(msg);
+                        }
+                    });
+                },
+
+                markNotificationsAsRead() { this.unreadNotificationsCount = 0; },
+                
+                openHelpModal() { this.isHelpModalOpen = true; },
+                closeHelpModal() { this.isHelpModalOpen = false; },
+                
+                openUpdateStatusModal(task) { this.taskToUpdate = task; this.newStatus = task.status; this.closingNoteInput = task.closingNote || ''; this.isUpdateStatusModalOpen = true; },
+                closeUpdateStatusModal() { this.isUpdateStatusModalOpen = false; this.taskToUpdate = {}; },
+                async submitStatusUpdate() {
+                    if (!this.taskToUpdate._id || !this.newStatus) return;
+                    if ((this.newStatus === 'Completed' || this.newStatus === 'Cancelled') && !this.closingNoteInput.trim()) {
+                        alert('A closing note is required to complete or cancel the task.');
+                        return;
+                    }
+                    try {
+                        const response = await fetch('/api/cleaning/update-status', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ requestId: this.taskToUpdate._id, status: this.newStatus, closingNote: this.closingNoteInput })
+                        });
+                        if (!response.ok) throw new Error('Failed to update status.');
+                        this.closeUpdateStatusModal();
+                    } catch(error) { alert('Error updating status: ' + error.message); }
+                },
+                async openChatModal(task) {
+                    this.chatTask = task;
+                    this.isChatModalOpen = true;
+                    this.chatHistory = [];
+                    try {
+                        const response = await fetch(`/api/cleaning/details/${task._id}`);
+                        if (!response.ok) throw new Error('Could not load chat history.');
+                        const requestDetails = await response.json();
+                        this.chatHistory = requestDetails.chatHistory || [];
+                        socket.emit('join-chat-room', { type: 'cleaning', requestId: task._id });
+                    } catch (error) { this.chatHistory = [{ senderName: 'System', message: "Could not load chat history." }]; }
+                },
+                closeChatModal() { this.isChatModalOpen = false; this.chatMessageInput = ''; this.chatHistory = []; this.chatTask = {}; },
+                sendChatMessage() {
+                    if (!this.chatMessageInput.trim()) return;
+                    socket.emit('send-chat-message', { type: 'cleaning', requestId: this.chatTask._id, message: this.chatMessageInput });
+                    this.chatMessageInput = '';
+                },
+                openTaskDetailsModal(task) { this.selectedTask = task; this.isTaskDetailsModalOpen = true; },
+                closeTaskDetailsModal() { this.isTaskDetailsModalOpen = false; this.selectedTask = null; },
+                async sendBroadcast() {
+                    if (!this.newBroadcastMessage.trim()) return;
+                    try {
+                        const response = await fetch('/api/admin/create-broadcast', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ message: this.newBroadcastMessage })
+                        });
+                        if (!response.ok) throw new Error('Failed to post broadcast.');
+                        this.newBroadcastMessage = '';
+                    } catch(error) { alert(error.message); }
+                },
+                openProfileModal() { if (this.currentUser) { this.editableUser = JSON.parse(JSON.stringify(this.currentUser)); this.profilePicPreviewUrl = null; this.isProfileModalOpen = true; } },
+                closeProfileModal() { this.isProfileModalOpen = false; this.editableUser = null; },
+                handleProfilePicChange(event) {
+                    const file = event.target.files[0];
+                    if (file) { this.profilePicPreviewUrl = URL.createObjectURL(file); }
+                },
+                async saveProfileChanges() { 
+                    try {
+                        const response = await fetch('/api/profile/update', {
+                            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ address: this.editableUser.address, phone: this.editableUser.phone, })
+                        });
+                        if (!response.ok) throw new Error('Failed to update profile.');
+                        this.currentUser = await response.json();
+                        alert('Profile changes saved successfully!');
+                        this.closeProfileModal();
+                    } catch(error) { alert(error.message); }
+                },
+                
+                isActive(page) { return this.currentPage === page ? 'bg-indigo-600 text-white shadow' : 'hover:bg-slate-100'; },
+                formatDate(dateString, includeTime = true) {
+                    if (!dateString) return 'N/A';
+                    const options = { day: 'numeric', month: 'short' };
+                    if (new Date(dateString).getFullYear() !== new Date().getFullYear()) { options.year = 'numeric'; }
+                    if (includeTime) { options.hour = '2-digit'; options.minute = '2-digit'; }
+                    return new Date(dateString).toLocaleDateString('en-IN', options);
+                },
+                formatFullDate(dateString) {
+                    if (!dateString) return 'N/A';
+                    return new Date(dateString).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+                },
+                formatRating(rating, includeEmpty = false) {
+                    if (!rating || rating === 0) { return includeEmpty ? 'Not Rated' : ''; }
+                    let stars = '★'.repeat(rating);
+                    if (includeEmpty) { stars += '☆'.repeat(5 - rating); }
+                    return stars;
+                },
+                getCompletionTime(task) {
+                    if(task.completedAt && task.createdAt) {
+                        const timeDiff = new Date(task.completedAt) - new Date(task.createdAt);
+                        const hours = Math.floor(timeDiff / 3600000);
+                        const minutes = Math.round((timeDiff % 3600000) / 60000);
+                        return `${hours}h ${minutes}m`;
+                    }
+                    return 'N/A';
+                },
+                getStatusClass(status) { return `status-${(status || '').toLowerCase().replace(/ /g, '-')}`; },
+                getActivityIcon(task) {
+                    if (task.status === 'Completed') return { icon: 'fa-solid fa-check', bg: 'bg-green-100 text-green-700' };
+                    if (task.status === 'In Progress') return { icon: 'fa-solid fa-spinner', bg: 'bg-sky-100 text-sky-700' };
+                    return { icon: 'fa-solid fa-plus', bg: 'bg-slate-100 text-slate-700' };
+                }
+            }
+        }
+
+        function liveClock() {
+            return {
+                time: '', date: '',
+                start() { this.updateTime(); setInterval(() => { this.updateTime(); }, 1000); },
+                updateTime() {
+                    const now = new Date();
+                    this.time = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+                    this.date = now.toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' });
+                }
+            };
+        }
+    </script>
+</body>
+</html>

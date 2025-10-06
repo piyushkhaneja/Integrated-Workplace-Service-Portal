@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign In - JC Nexus Hub</title>
+  
+  <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <style>
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    body {
+      font-family: 'Poppins', sans-serif;
+    }
+  </style>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          animation: {
+            'fade-in-up': 'fadeInUp 0.8s ease-out forwards',
+          },
+        }
+      }
+    }
+  </script>
+</head>
+
+<body class="bg-slate-50 antialiased">
+  <div class="flex min-h-screen items-stretch">
+    
+    <div class="hidden lg:flex w-full max-w-2xl items-center justify-center bg-slate-900 p-12 text-white text-center relative overflow-hidden">
+      <div class="absolute -top-20 -left-20 w-72 h-72 bg-indigo-500 rounded-full mix-blend-lighten filter blur-3xl opacity-40 animate-pulse"></div>
+      <div class="absolute -bottom-24 -right-12 w-96 h-96 bg-purple-500 rounded-full mix-blend-lighten filter blur-3xl opacity-30 animate-pulse animation-delay-4000"></div>
+      <div class="absolute inset-0 bg-grid-slate-800/[0.2] [mask-image:linear-gradient(to_bottom,white_40%,transparent_100%)]"></div>
+
+      <div class="z-10 w-full max-w-md animate-fade-in-up [animation-delay:200ms]">
+        <img src="logo.png" alt="JC Nexus Hub Logo" class="h-32 w-auto mx-auto drop-shadow-lg" />
+        <h1 class="mt-6 text-4xl font-extrabold tracking-wide">JC NEXUS HUB</h1>
+        <p class="mt-4 text-base text-slate-300 leading-relaxed">Integrated solutions for enterprise excellence.</p>
+      </div>
+    </div>
+
+    <div class="w-full flex items-center justify-center p-6 lg:py-8 lg:px-12">
+      <div class="w-full max-w-md">
+        
+        <div class="bg-white p-8 md:p-10 rounded-2xl shadow-xl shadow-slate-200/60 border border-slate-200/80 animate-fade-in-up [animation-delay:400ms]">
+          <div class="text-center mb-8">
+            <h2 class="text-3xl font-bold text-slate-900 tracking-tight">Welcome Back!</h2>
+            <p class="mt-1 text-base text-slate-500">Sign in to access your dashboard.</p>
+          </div>
+
+          <form id="loginForm" class="space-y-5">
+            <div>
+              <label for="email" class="text-sm font-medium text-slate-700">Email Address</label>
+              <input id="email" name="email" type="email" autocomplete="email" required placeholder="you@example.com"
+                class="mt-1 block w-full bg-slate-50 px-4 py-3 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition" />
+            </div>
+
+            <div>
+              <label for="password" class="text-sm font-medium text-slate-700">Password</label>
+              <div class="mt-1 relative">
+                <input id="password" name="password" type="password" autocomplete="current-password" required placeholder="••••••••"
+                  class="block w-full bg-slate-50 px-4 pr-12 py-3 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition" />
+                <button type="button" id="togglePassword" class="absolute inset-y-0 right-0 flex items-center px-4 text-slate-500 hover:text-slate-700">
+                  <svg id="eye-open" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                  </svg>
+                  <svg id="eye-closed" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 hidden">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12c.982 3.5 4.226 6.5 10.066 6.5s9.084-3 10.066-6.5a10.477 10.477 0 0 0-2.046-3.777M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.243 4.243L6.228 6.228" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            <div class="flex items-center">
+                <input id="remember-me" name="remember-me" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600">
+                <label for="remember-me" class="ml-2 block text-sm text-slate-800">Remember me</label>
+            </div>
+            
+            <div id="message" aria-live="polite" class="text-center text-sm font-medium h-5 text-red-600"></div>
+
+            <div>
+              <button type="submit" id="submitButton" 
+                class="group relative w-full flex justify-center items-center py-3 px-4 border border-transparent text-base font-semibold rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-300 ease-in-out shadow-lg hover:shadow-indigo-500/40 transform hover:-translate-y-0.5 disabled:opacity-75 disabled:cursor-not-allowed">
+                <span class="button-text">Sign In</span>
+                <span class="button-spinner absolute hidden">
+                  <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                </span>
+              </button>
+            </div>
+          </form>
+          
+          <div class="mt-6 space-y-2 text-center text-sm">
+            <p class="text-slate-600">
+              Don't have an account?
+              <a href="/register" class="font-medium text-indigo-600 hover:text-indigo-500 hover:underline">Create one</a>
+            </p>
+            <p class="text-slate-600">
+              Forgot password? Contact - 
+              <a href="mailto:admin@jce.com" class="font-medium text-indigo-600 hover:text-indigo-500 hover:underline">admin@jce.com</a>
+            </p>
+          </div>
+          </div>
+        
+        <div class="mt-8 text-center animate-fade-in-up [animation-delay:600ms]">
+          <p class="text-xs text-slate-500">&copy; JC Eletronica pvt ltd. | All rights reserved.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const loginForm = document.getElementById('loginForm');
+      const messageDiv = document.getElementById('message');
+      const submitButton = document.getElementById('submitButton');
+      const buttonText = submitButton.querySelector('.button-text');
+      const buttonSpinner = submitButton.querySelector('.button-spinner');
+
+      const togglePassword = document.getElementById('togglePassword');
+      const passwordInput = document.getElementById('password');
+      const eyeOpen = document.getElementById('eye-open');
+      const eyeClosed = document.getElementById('eye-closed');
+
+      // Form Submit
+      loginForm.addEventListener('submit', async function(event) {
+        event.preventDefault();
+        messageDiv.textContent = '';
+        
+        const data = Object.fromEntries(new FormData(loginForm).entries());
+
+        submitButton.disabled = true;
+        buttonText.classList.add('opacity-0');
+        buttonSpinner.classList.remove('hidden');
+
+        try {
+          const response = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+          });
+
+          const result = await response.json();
+
+          if (response.ok && result.success) {
+            window.location.href = result.redirectUrl || '/employee-dashboard';
+          } else {
+            throw new Error(result.message || 'Login failed. Please try again.');
+          }
+        } catch (error) {
+          messageDiv.textContent = error.message;
+        } finally {
+          setTimeout(() => {
+            submitButton.disabled = false;
+            buttonText.classList.remove('opacity-0');
+            buttonSpinner.classList.add('hidden');
+          }, 300);
+        }
+      });
+
+      // Password Toggle
+      togglePassword.addEventListener('click', function() {
+        const isPassword = passwordInput.type === 'password';
+        passwordInput.type = isPassword ? 'text' : 'password';
+        eyeOpen.classList.toggle('hidden', isPassword);
+        eyeClosed.classList.toggle('hidden', !isPassword);
+      });
+    });
+  </script>
+</body>
+</html>
